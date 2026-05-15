@@ -1,5 +1,5 @@
 import { type AppConfig, type ToolMeta } from '@/shared/types';
-import { defaultCategories } from '@/shared/defaults';
+import { defaultCategories, defaultTools } from '@/shared/defaults';
 
 function normalizeTool(tool: ToolMeta): ToolMeta {
   return {
@@ -50,6 +50,18 @@ export function normalizeConfig(input: AppConfig): { next: AppConfig; changed: b
     if (JSON.stringify(normalized) !== JSON.stringify(t)) changed = true;
     return normalized;
   });
+
+  const toolIdSet = new Set(tools.map((t) => t.id).filter(Boolean));
+  for (const t of defaultTools()) {
+    if (toolIdSet.has(t.id)) continue;
+    const normalized = normalizeTool(t);
+    if (normalized.id === 'zero-limit' && normalized.category !== '代理/网络') {
+      normalized.category = '代理/网络';
+    }
+    tools.push(normalized);
+    toolIdSet.add(t.id);
+    changed = true;
+  }
 
   const toolCategories = tools.map((t) => t.category).filter(Boolean);
   const categoriesNorm = normalizeCategories(input.categories, toolCategories);

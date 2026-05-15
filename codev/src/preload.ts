@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('codev', {
   },
   downloads: {
     list: () => ipcRenderer.invoke('downloads:list') as Promise<DownloadTask[]>,
+    openDir: () =>
+      ipcRenderer.invoke('downloads:openDir') as Promise<
+        | { ok: true; dir: string }
+        | { ok: false; error: string }
+      >,
     addGithub: (toolId: string, tagName?: string) =>
       ipcRenderer.invoke('downloads:addGithub', toolId, tagName) as Promise<
         | { ok: true; task: DownloadTask }

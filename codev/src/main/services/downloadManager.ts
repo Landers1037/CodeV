@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import got, { type CancelableRequest } from 'got';
+import got from 'got';
 import PQueue from 'p-queue';
 
 import { createProxyAgent } from '@/main/services/network';
@@ -12,7 +12,9 @@ import { type AppConfig, type ProxyConfig } from '@/shared/types';
 import { type DownloadTask } from '@/shared/downloadTypes';
 
 type TaskRuntime = {
-  request?: CancelableRequest<unknown>;
+  request?: NodeJS.ReadWriteStream;
+  file?: fs.WriteStream;
+  controller?: AbortController;
 };
 
 function now() {
@@ -101,11 +103,18 @@ export class DownloadManager {
       const agent = createProxyAgent(pickProxy(cfg2, toolId));
 
       await new Promise<void>((resolve, reject) => {
+        const controller = new AbortController();
         const stream = got.stream(url, {
           headers: { 'user-agent': 'CodeV' },
           agent: agent ? { http: agent, https: agent } : undefined,
+          signal: controller.signal,
         });
-        this.runtime.set(taskId, { request: stream });
+        const file = fs.createWriteStream(targetPath);
+        this.runtime.set(taskId, {
+          request: stream as unknown as NodeJS.ReadWriteStream,
+          file,
+          controller,
+        });
 
         stream.on('downloadProgress', (p) => {
           this.updateTask(taskId, {
@@ -116,13 +125,14 @@ export class DownloadManager {
 
         stream.on('error', (err) => reject(err));
 
-        const file = fs.createWriteStream(targetPath);
         file.on('error', (err) => reject(err));
         file.on('finish', () => resolve());
 
         stream.pipe(file);
       });
 
+      const after = this.tasks.get(taskId);
+      if (!after) return;
       this.runtime.delete(taskId);
       this.updateTask(taskId, { status: 'completed' });
 
@@ -161,17 +171,33 @@ export class DownloadManager {
     return task;
   }
 
-  cancel(taskId: string) {
+  async cancel(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) return;
     const rt = this.runtime.get(taskId);
     try {
-      rt?.request?.cancel();
+      rt?.controller?.abort();
+    } catch {
+      // ignore
+    }
+    try {
+      rt?.request?.destroy();
+    } catch {
+      // ignore
+    }
+    try {
+      rt?.file?.destroy();
     } catch {
       // ignore
     }
     this.runtime.delete(taskId);
-    this.updateTask(taskId, { status: 'cancelled' });
+    this.tasks.delete(taskId);
+    try {
+      await fsp.rm(task.targetPath, { force: true });
+    } catch {
+      // ignore
+    }
+    this.onChange?.(this.list());
   }
 
   async clearCompleted(): Promise<number> {

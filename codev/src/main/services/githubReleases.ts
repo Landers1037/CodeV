@@ -49,3 +49,20 @@ export function pickExeAsset(release: GithubRelease): GithubReleaseAsset | null 
   return prefer ?? candidates[0] ?? null;
 }
 
+export function pickInstallerAsset(
+  toolId: string,
+  release: GithubRelease,
+): GithubReleaseAsset | null {
+  const exe = pickExeAsset(release);
+  if (exe) return exe;
+
+  if (toolId === 'cc-switch') {
+    const assets = release.assets ?? [];
+    const candidates = assets.filter((a) => a.name.toLowerCase().endsWith('.msi'));
+    const exact = candidates.find((a) => a.name === 'CC-Switch-v3.14.1-Windows.msi');
+    const prefer = candidates.find((a) => /^cc-switch-v.*-windows\.msi$/i.test(a.name));
+    return exact ?? prefer ?? candidates[0] ?? null;
+  }
+
+  return null;
+}

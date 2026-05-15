@@ -47,6 +47,18 @@ export function DownloadsPage() {
             variant="secondary"
             onClick={async () => {
               setMessage('');
+              const res = await window.codev?.downloads?.openDir();
+              if (!res) return;
+              if (res.ok) setMessage(`已打开下载目录：${res.dir}`);
+              else setMessage(res.error);
+            }}
+          >
+            打开下载目录
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              setMessage('');
               const n = await window.codev?.downloads?.clearCompleted();
               if (typeof n === 'number') setMessage(`已清理 ${n} 个已完成任务`);
             }}

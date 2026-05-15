@@ -31,6 +31,7 @@ declare global {
       };
       downloads?: {
         list: () => Promise<DownloadTask[]>;
+        openDir: () => Promise<{ ok: true; dir: string } | { ok: false; error: string }>;
         addGithub: (
           toolId: string,
           tagName?: string,

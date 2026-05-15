@@ -1,10 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EllipsisVertical, Pencil, Play, Search, Terminal as TerminalIcon } from 'lucide-react';
+import {
+  AppWindow,
+  Archive,
+  Bot,
+  Code2,
+  Compass,
+  Database,
+  EllipsisVertical,
+  Folder,
+  Globe,
+  Layers,
+  Network,
+  Pencil,
+  Play,
+  RefreshCw,
+  Search,
+  Settings2,
+  Shield,
+  Sparkles,
+  Terminal,
+  Terminal as TerminalIcon,
+  Wrench,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +55,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/renderer/state/configStore';
 import { type ToolMeta } from '@/shared/types';
 import ccSwitchIcon from '../../../../assets/cc-switch.png';
@@ -44,6 +67,8 @@ import opencodeIcon from '../../../../assets/opencode-logo-light.svg';
 import proxypilotIcon from '../../../../assets/proxypilot.png';
 import weztermIcon from '../../../../assets/wezterm-icon.svg';
 import zeroLimitIcon from '../../../../assets/zero-limit.png';
+import tabbyIcon from '../../../../assets/tabby.svg';
+import gitIcon from '../../../../assets/git-bash.svg';
 
 const bundledToolIcons: Record<string, string> = {
   'cc-switch': ccSwitchIcon,
@@ -55,6 +80,8 @@ const bundledToolIcons: Record<string, string> = {
   proxypilot: proxypilotIcon,
   wezterm: weztermIcon,
   'zero-limit': zeroLimitIcon,
+  tabby: tabbyIcon,
+  git: gitIcon,
 };
 
 function isTerminalToolId(id: string) {
@@ -108,24 +135,62 @@ function getToolInitial(name: string) {
   return /[a-z]/i.test(first) ? first.toUpperCase() : first;
 }
 
+function getStableHash(text: string) {
+  let hash = 0;
+  for (const ch of text) {
+    hash = (hash << 5) - hash + ch.codePointAt(0)!;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function resolveCategoryIcon(categoryId: string, label: string) {
+  if (categoryId === 'all') return Settings2;
+  const v = `${categoryId} ${label}`.toLowerCase();
+  if (v.includes('归档') || v.includes('archiv')) return Archive;
+  if (v.includes('终端') || v.includes('terminal') || v.includes('shell')) return Terminal;
+  if (v.includes('ai') || v.includes('模型') || v.includes('大模型')) return Sparkles;
+  if (v.includes('开发') || v.includes('dev') || v.includes('code')) return Code2;
+  if (v.includes('网络') || v.includes('proxy') || v.includes('vpn')) return Network;
+  if (v.includes('安全') || v.includes('security')) return Shield;
+  if (v.includes('数据') || v.includes('db') || v.includes('database')) return Database;
+  if (v.includes('浏览') || v.includes('web') || v.includes('browser')) return Globe;
+  if (v.includes('文件') || v.includes('folder')) return Folder;
+  if (v.includes('工具') || v.includes('settings') || v.includes('配置')) return Wrench;
+  if (v.includes('设计') || v.includes('design')) return Compass;
+  if (v.includes('协作') || v.includes('团队') || v.includes('team')) return Layers;
+  if (v.includes('应用') || v.includes('app')) return AppWindow;
+  if (v.includes('bot') || v.includes('agent')) return Bot;
+
+  const candidates = [
+    Layers,
+    Compass,
+    Wrench,
+    Globe,
+    Code2,
+    Bot,
+    Archive,
+    Database,
+    Network,
+    Shield,
+    Sparkles,
+    Folder,
+    AppWindow,
+    Terminal,
+  ] as const;
+  return candidates[getStableHash(v) % candidates.length];
+}
+
 /** 首页工具列表页面。 */
 export function HomePage() {
   const { config, update } = useConfigStore();
   const [message, setMessage] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
   const [editing, setEditing] = useState<ToolMeta | null>(null);
-
-  const grouped = useMemo(() => {
-    const tools = config?.tools ?? [];
-    const map = new Map<string, typeof tools>();
-    for (const t of tools) {
-      const list = map.get(t.category) ?? [];
-      list.push(t);
-      map.set(t.category, list);
-    }
-    return Array.from(map.entries());
-  }, [config]);
+  const tools = config?.tools ?? [];
 
   const categories = useMemo(() => {
     const fromConfig = config?.categories ?? [];
@@ -140,7 +205,64 @@ export function HomePage() {
       out.push(v);
     }
     return out;
-  }, [config?.categories, config?.tools]);
+  }, [config?.categories, tools]);
+
+  const categoryItems = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tool of tools) {
+      counts.set(tool.category, (counts.get(tool.category) ?? 0) + 1);
+    }
+
+    const items = categories.map((category) => ({
+      id: category,
+      label: category,
+      count: counts.get(category) ?? 0,
+    }));
+
+    return [
+      {
+        id: 'all',
+        label: '全部工具',
+        count: tools.length,
+      },
+      ...items,
+    ];
+  }, [categories, tools]);
+
+  const visibleGroups = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const filtered = tools.filter((tool) => {
+      const matchCategory = selectedCategory === 'all' || tool.category === selectedCategory;
+      if (!matchCategory) return false;
+      if (!normalizedKeyword) return true;
+      return [tool.name, tool.description, tool.category, tool.installPath, tool.detectedInstallPath]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedKeyword);
+    });
+
+    if (selectedCategory !== 'all') {
+      return filtered.length ? [[selectedCategory, filtered] as const] : [];
+    }
+
+    const map = new Map<string, ToolMeta[]>();
+    for (const tool of filtered) {
+      const list = map.get(tool.category) ?? [];
+      list.push(tool);
+      map.set(tool.category, list);
+    }
+
+    return Array.from(map.entries());
+  }, [keyword, selectedCategory, tools]);
+
+  const installedCount = useMemo(() => {
+    return tools.filter((tool) => tool.installPath || tool.detectedInstallPath).length;
+  }, [tools]);
+
+  useEffect(() => {
+    if (categoryItems.some((item) => item.id === selectedCategory)) return;
+    setSelectedCategory(categoryItems[0]?.id ?? 'all');
+  }, [categoryItems, selectedCategory]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -149,163 +271,321 @@ export function HomePage() {
   }, [toastMessage]);
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="text-lg font-semibold">工具</div>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setMessage('');
-            void window.codev?.tools?.scan();
-          }}
-        >
-          扫描安装目录
-        </Button>
-      </div>
-      <AnimatePresence mode="wait">
-        {message ? (
-          <motion.div
-            key={message}
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="mb-3 text-sm text-muted-foreground"
-          >
-            {message}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+    <div className="flex h-full min-h-0 gap-4">
+      <aside className="app-soft-panel flex w-[290px] shrink-0 flex-col rounded-[24px] p-4">
+        <div className="pb-4">
+          <div className="text-lg font-semibold tracking-tight">工具分类</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            从左侧分组快速切换常用工具列表。
+          </div>
+        </div>
 
-      <div className="space-y-4">
-        {grouped.map(([category, tools]) => (
-          <Card key={category}>
-            <CardHeader>
-              <CardTitle>{category}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {tools.map((t) => {
-                const installed = !!(t.installPath || t.detectedInstallPath);
-                const canTerminal = installed && isTerminalToolId(t.id);
-                const iconSrc = resolveToolIcon(t);
-                return (
-                  <motion.div
-                    key={t.id}
-                    className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background/40 p-3"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -2, scale: 1.01 }}
-                    whileTap={{ scale: 0.995 }}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {iconSrc ? (
-                        <img
-                          src={iconSrc}
-                          alt={t.name}
-                          className="h-9 w-9 shrink-0 rounded-lg border border-border/60 bg-card/60 object-contain p-1"
-                        />
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card/60 text-sm font-semibold text-foreground/80">
-                          {getToolInitial(t.name)}
-                        </div>
+        <div className="grid grid-cols-2 gap-3 border-y border-border/60 py-4">
+          <div className="rounded-2xl border border-border/70 bg-card/70 px-3 py-3">
+            <div className="text-xs text-muted-foreground">工具总数</div>
+            <div className="mt-2 text-2xl font-semibold">{tools.length}</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/70 px-3 py-3">
+            <div className="text-xs text-muted-foreground">已安装</div>
+            <div className="mt-2 text-2xl font-semibold">{installedCount}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex-1 overflow-auto pr-1">
+          <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            分组导航
+          </div>
+          <div className="space-y-2">
+            {categoryItems.map((item) => {
+              const isActive = item.id === selectedCategory;
+              const Icon = resolveCategoryIcon(item.id, item.label);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-[12px] px-4 py-3 text-left transition-[background-color,box-shadow,color,transform] duration-200 ease-out hover:-translate-y-0.5',
+                    isActive
+                      ? 'bg-accent/75 text-foreground shadow-[0_18px_34px_-26px_rgb(36,27,20,0.38)]'
+                      : 'bg-transparent text-muted-foreground hover:bg-card/70 hover:text-foreground hover:shadow-[0_14px_28px_-26px_rgb(36,27,20,0.35)]',
+                  )}
+                  onClick={() => setSelectedCategory(item.id)}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/60',
+                        isActive ? 'text-foreground' : 'text-muted-foreground',
                       )}
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{t.name}</div>
-                        {t.description ? (
-                          <div className="truncate text-xs text-muted-foreground">
-                            {t.description}
-                          </div>
-                        ) : null}
-                        <div className="truncate text-xs text-muted-foreground">
-                          {installed
-                            ? `已安装：${t.installPath || t.detectedInstallPath}`
-                            : t.source.scanOnly
-                              ? '未检测到安装（仅扫描）'
-                              : '未安装，可下载'}
-                        </div>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <motion.button
-                          className="app-no-drag inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-card/60 shadow-sm transition-[transform,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent/60 hover:shadow-md active:scale-95"
-                          type="button"
-                          whileHover={{ scale: 1.04 }}
-                          whileTap={{ scale: 0.94 }}
-                          transition={{ duration: 0.15, ease: 'easeOut' }}
-                        >
-                          <EllipsisVertical className="h-4 w-4" />
-                        </motion.button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          disabled={!installed}
-                          onSelect={async () => {
-                            setMessage('');
-                            const res = await window.codev?.tools?.open(t.id);
-                            if (!res) return;
-                            if (res.ok) {
-                              setMessage(
-                                res.reused
-                                  ? '已在运行，已尝试聚焦'
-                                  : `已启动 PID=${res.pid}`,
-                              );
-                            } else if ('error' in res) {
-                              setMessage(res.error);
-                            }
-                          }}
-                        >
-                          <Play className="h-4 w-4" />
-                          打开
-                        </DropdownMenuItem>
-                        {canTerminal ? (
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              localStorage.setItem('__codev_terminal_tool__', t.id);
-                              navigate('/terminal');
-                            }}
-                          >
-                            <TerminalIcon className="h-4 w-4" />
-                            新建终端
-                          </DropdownMenuItem>
-                        ) : null}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setEditing(t)}>
-                          <Pencil className="h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={async () => {
-                            setMessage('');
-                            const next = await window.codev?.tools?.check(t.id);
-                            const checked = next?.tools?.find((x) => x.id === t.id);
-                            const installedNow = !!(
-                              checked?.installPath || checked?.detectedInstallPath
-                            );
-                            if (installedNow) {
-                              setMessage('已检测到安装');
-                              setToastMessage('');
-                            } else {
-                              setToastMessage(`${t.name} 未检测到安装，请先安装或配置路径`);
-                            }
-                          }}
-                        >
-                          <Search className="h-4 w-4" />
-                          检查
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </motion.div>
-                );
-              })}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate text-sm font-medium">{item.label}</span>
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-xs',
+                      isActive ? 'bg-accent/90 text-foreground' : 'bg-secondary text-muted-foreground',
+                    )}
+                  >
+                    {item.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </aside>
+
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="bg-card/74">
+            <CardContent className="flex items-center justify-between gap-4 py-5">
+              <div>
+                <div className="text-lg font-semibold tracking-tight">程序工作台</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  支持按分类筛选、搜索工具、检测安装状态并直接启动。
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setMessage('');
+                  void window.codev?.tools?.scan();
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                扫描安装目录
+              </Button>
             </CardContent>
           </Card>
-        ))}
-        {!grouped.length ? (
-          <div className="text-sm text-muted-foreground">暂无工具配置</div>
-        ) : null}
-      </div>
+        </div>
+
+        <div className="app-soft-panel flex min-h-0 flex-1 flex-col gap-4 rounded-[24px] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-md">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-10"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索名称、分类、说明或安装路径"
+              />
+            </div>
+
+            <AnimatePresence mode="wait">
+              {message ? (
+                <motion.div
+                  key={message}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="rounded-2xl border border-border/70 bg-card/70 px-4 py-2 text-sm text-muted-foreground"
+                >
+                  {message}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-auto pr-1">
+            <div className="space-y-4">
+              {visibleGroups.map(([category, items]) => (
+                <section key={category} className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div>
+                      <div className="text-base font-semibold tracking-tight">{category}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {items.length} 个程序，支持直接启动和维护。
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {items.map((t) => {
+                      const installed = !!(t.installPath || t.detectedInstallPath);
+                      const canTerminal = installed && isTerminalToolId(t.id);
+                      const iconSrc = resolveToolIcon(t);
+                      const pathText =
+                        t.installPath || t.detectedInstallPath || '未检测到安装路径';
+
+                      return (
+                        <motion.div
+                          key={t.id}
+                          className="group flex flex-col gap-4 rounded-[22px] border border-border/70 bg-card/84 p-4 shadow-[0_18px_38px_-28px_rgb(36,27,20,0.38)] transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-[0_24px_44px_-28px_rgb(36,27,20,0.42)] lg:flex-row lg:items-center lg:justify-between"
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-4">
+                            {iconSrc ? (
+                              <img
+                                src={iconSrc}
+                                alt={t.name}
+                                className="h-12 w-12 shrink-0 rounded-2xl border border-border/70 bg-card object-contain p-2"
+                              />
+                            ) : (
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-base font-semibold text-foreground/80">
+                                {getToolInitial(t.name)}
+                              </div>
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="truncate text-base font-semibold">{t.name}</div>
+                                <span
+                                  className={cn(
+                                    'rounded-full px-2.5 py-1 text-xs font-medium',
+                                    installed
+                                      ? 'bg-primary/14 text-primary'
+                                      : t.source.scanOnly
+                                        ? 'bg-secondary text-muted-foreground'
+                                        : 'bg-amber-500/14 text-amber-600 dark:text-amber-300',
+                                  )}
+                                >
+                                  {installed
+                                    ? '已安装'
+                                    : t.source.scanOnly
+                                      ? '仅扫描'
+                                      : '可下载'}
+                                </span>
+                              </div>
+
+                              <div className="mt-1 truncate text-sm text-muted-foreground">
+                                {t.description || '暂无说明，建议补充程序用途或使用场景。'}
+                              </div>
+                              <div
+                                className="mt-2 truncate text-xs text-muted-foreground"
+                                title={pathText}
+                              >
+                                {installed ? `安装路径：${pathText}` : pathText}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              disabled={!installed}
+                              onClick={async () => {
+                                setMessage('');
+                                const res = await window.codev?.tools?.open(t.id);
+                                if (!res) return;
+                                if (res.ok) {
+                                  setMessage(
+                                    res.reused ? '已在运行，已尝试聚焦' : `已启动 PID=${res.pid}`,
+                                  );
+                                } else if ('error' in res) {
+                                  setMessage(res.error);
+                                }
+                              }}
+                            >
+                              <Play className="h-4 w-4" />
+                              打开
+                            </Button>
+
+                            {canTerminal ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  localStorage.setItem('__codev_terminal_tool__', t.id);
+                                  navigate('/terminal');
+                                }}
+                              >
+                                <TerminalIcon className="h-4 w-4" />
+                                终端
+                              </Button>
+                            ) : null}
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className="app-no-drag inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-card/85 text-muted-foreground transition-[background-color,color,transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent/70 hover:text-foreground hover:shadow-[0_18px_34px_-26px_rgb(36,27,20,0.45)]"
+                                  type="button"
+                                  aria-label={`更多操作：${t.name}`}
+                                >
+                                  <EllipsisVertical className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  disabled={!installed}
+                                  onSelect={async () => {
+                                    setMessage('');
+                                    const res = await window.codev?.tools?.open(t.id);
+                                    if (!res) return;
+                                    if (res.ok) {
+                                      setMessage(
+                                        res.reused
+                                          ? '已在运行，已尝试聚焦'
+                                          : `已启动 PID=${res.pid}`,
+                                      );
+                                    } else if ('error' in res) {
+                                      setMessage(res.error);
+                                    }
+                                  }}
+                                >
+                                  <Play className="h-4 w-4" />
+                                  打开
+                                </DropdownMenuItem>
+                                {canTerminal ? (
+                                  <DropdownMenuItem
+                                    onSelect={() => {
+                                      localStorage.setItem('__codev_terminal_tool__', t.id);
+                                      navigate('/terminal');
+                                    }}
+                                  >
+                                    <TerminalIcon className="h-4 w-4" />
+                                    新建终端
+                                  </DropdownMenuItem>
+                                ) : null}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setEditing(t)}>
+                                  <Pencil className="h-4 w-4" />
+                                  编辑
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={async () => {
+                                    setMessage('');
+                                    const next = await window.codev?.tools?.check(t.id);
+                                    const checked = next?.tools?.find((x) => x.id === t.id);
+                                    const installedNow = !!(
+                                      checked?.installPath || checked?.detectedInstallPath
+                                    );
+                                    if (installedNow) {
+                                      setMessage('已检测到安装');
+                                      setToastMessage('');
+                                    } else {
+                                      setToastMessage(
+                                        `${t.name} 未检测到安装，请先安装或配置路径`,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Search className="h-4 w-4" />
+                                  检查
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+
+              {!visibleGroups.length ? (
+                <div className="app-setting-preview flex min-h-[260px] items-center justify-center text-sm text-muted-foreground">
+                  当前筛选条件下暂无工具，尝试切换分类或清空搜索关键词。
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <Dialog
         open={!!editing}
@@ -430,19 +710,19 @@ export function HomePage() {
                       </Button>
                     </div>
                     {resolveToolIcon(editing) ? (
-                      <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2">
+                      <div className="app-setting-preview flex items-center gap-3 px-3 py-3">
                         <img
                           src={resolveToolIcon(editing)}
                           alt={editing.name}
-                          className="h-10 w-10 rounded-lg border border-border/60 bg-card/60 object-contain p-1"
+                          className="h-10 w-10 rounded-xl border border-border/60 bg-card/60 object-contain p-1"
                         />
                         <div className="truncate text-xs text-muted-foreground">
                           {editing.logoPath || '使用内置图标'}
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/60 bg-card/60 text-sm font-semibold text-foreground/80">
+                      <div className="app-setting-preview flex items-center gap-3 px-3 py-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card/60 text-sm font-semibold text-foreground/80">
                           {getToolInitial(editing.name)}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
@@ -452,7 +732,7 @@ export function HomePage() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="app-setting-row flex items-center justify-between gap-4">
                     <Label>GUI 程序</Label>
                     <Switch
                       checked={editing.isGui}
@@ -593,10 +873,14 @@ export function HomePage() {
             animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 24, y: 8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 shadow-xl backdrop-blur"
+            className="pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-[22px] border border-amber-500/30 bg-[rgb(120,70,20,0.16)] px-4 py-3 shadow-[0_24px_50px_-28px_rgb(0,0,0,0.5)] backdrop-blur-xl"
           >
-            <div className="text-sm font-medium text-amber-200">安装检查提醒</div>
-            <div className="mt-1 text-sm text-amber-100/90">{toastMessage}</div>
+            <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
+              安装检查提醒
+            </div>
+            <div className="mt-1 text-sm text-amber-800/90 dark:text-amber-100/90">
+              {toastMessage}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>

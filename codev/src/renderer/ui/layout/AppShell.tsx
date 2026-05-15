@@ -44,6 +44,7 @@ const navItems = [
   { to: '/settings', label: '设置', icon: Settings },
 ] as const;
 
+/** 应用主框架布局。 */
 export function AppShell() {
   const location = useLocation();
   const windowApi = window.codev?.window;
@@ -74,6 +75,27 @@ export function AppShell() {
     }
     return out;
   }, [config?.categories, config?.tools]);
+
+  const pageMeta = useMemo(() => {
+    if (location.pathname.startsWith('/downloads')) {
+      return {
+        title: '下载中心',
+      };
+    }
+    if (location.pathname.startsWith('/terminal')) {
+      return {
+        title: '终端工作台',
+      };
+    }
+    if (location.pathname.startsWith('/settings')) {
+      return {
+        title: '参数设置',
+      };
+    }
+    return {
+      title: '工具首页',
+    };
+  }, [location.pathname]);
 
   const pickExe = async () => {
     const p = await window.codev?.dialog?.openExe();
@@ -126,118 +148,134 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen w-screen bg-background text-foreground">
-        <header className="flex h-12 items-center justify-between border-b border-border/60 px-3">
-          <div className="flex items-center gap-2">
-            <div className="app-drag flex items-center gap-2 pr-2">
-              <img
-                src={appLogo}
-                alt="logo"
-                className="h-10 w-10 rounded-md shadow-sm"
-              />
-              <div className="text-sm font-semibold tracking-wide">CodeV</div>
+      <div className="app-shell-bg h-screen w-screen overflow-hidden text-foreground">
+        <div className="flex h-full">
+          <div className="flex items-center">
+            <aside className="app-sidebar ml-2 flex h-[calc(100vh-16px)] w-[72px] shrink-0 flex-col items-center justify-between rounded-[10px] px-4 py-5">
+            <div className="flex flex-col items-center gap-6">
+              <div className="app-drag flex w-full justify-center pb-2">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#2a2a2a]/50 shadow-[inset_0_1px_0_rgb(255,255,255,0.14),0_14px_28px_-18px_rgb(0,0,0,0.65)]">
+                  <img src={appLogo} alt="CodeV" className="h-12 w-12 rounded-xl object-contain" />
+                </div>
+              </div>
+
+              <nav className="flex flex-col items-center gap-3">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Tooltip key={item.to}>
+                      <TooltipTrigger asChild>
+                        <NavLink
+                          to={item.to}
+                          aria-label={item.label}
+                          className={({ isActive }) =>
+                            cn(
+                              'app-no-drag inline-flex h-11 w-11 items-center justify-center rounded-2xl text-[hsl(var(--sidebar-muted))] transition-[transform,background-color,color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-white/8 hover:text-[hsl(var(--sidebar-foreground))]',
+                              isActive &&
+                                'bg-white/12 text-white shadow-[inset_0_1px_0_rgb(255,255,255,0.12),0_18px_32px_-24px_rgb(0,0,0,0.8)]',
+                            )
+                          }
+                        >
+                          <Icon className="h-[18px] w-[18px]" />
+                        </NavLink>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.label}</TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </nav>
             </div>
 
-            <nav className="flex items-center gap-2">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Tooltip key={item.to}>
-                    <TooltipTrigger asChild>
-                      <NavLink
-                        to={item.to}
-                        className={({ isActive }) =>
-                          cn(
-                            'app-no-drag inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-card/60 shadow-sm transition hover:bg-accent/60',
-                            isActive && 'bg-accent',
-                          )
-                        }
-                      >
-                        <Icon className="h-4 w-4" />
-                      </NavLink>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {item.label}
-                      <span className="sr-only">{location.pathname}</span>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+            <div className="flex flex-col items-center gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="app-no-drag h-11 w-11 rounded-xl border-white/0  p-0 text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-btn-background))]/80"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setOpenAdd(true)}
+                    aria-label="添加程序"
+                  >
+                    <Plus className="h-[18px] w-[18px]" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">添加程序</TooltipContent>
+              </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    className="app-no-drag h-9 w-9 rounded-full border border-border/60 bg-card/60 p-0 shadow-sm hover:bg-accent/60"
+                    className="app-no-drag h-11 w-11 rounded-xl border-white/0 p-0 text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-btn-background))]/80"
                     size="icon"
                     variant="ghost"
                     onClick={() => setOpenAbout(true)}
-                    aria-label="关于"
+                    aria-label="关于 CodeV"
                   >
-                    <Info className="h-4 w-4" />
+                    <Info className="h-[18px] w-[18px]" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>关于</TooltipContent>
+                <TooltipContent side="right">关于 CodeV</TooltipContent>
               </Tooltip>
+            </div>
+            </aside>
+          </div>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
+          <div className="flex min-w-0 flex-1 flex-col pl-0">
+            <div className="app-panel flex h-full min-h-0 flex-col">
+              <header className="flex h-12 items-center justify-between border-none px-6">
+                <div className="app-drag flex min-w-0 flex-1 items-center">
+                  <div className="min-w-0">
+                    <div className="text-lg font-semibold tracking-tight">{pageMeta.title}</div>
+                  </div>
+                </div>
+
+                <div className="app-no-drag ml-4 flex items-center gap-1">
                   <Button
-                    className="app-no-drag h-9 w-9 rounded-full border border-border/60 bg-card/60 p-0 shadow-sm hover:bg-accent/60"
+                    className="h-10 w-10 rounded-2xl"
                     size="icon"
                     variant="ghost"
-                    onClick={() => {
-                      setOpenAdd(true);
-                    }}
+                    onClick={() => windowApi?.minimize()}
+                    aria-label="最小化"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Minus className="h-4 w-4" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>添加</TooltipContent>
-              </Tooltip>
-            </nav>
-          </div>
+                  <Button
+                    className="h-10 w-10 rounded-2xl"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => windowApi?.toggleMaximize()}
+                    aria-label="最大化"
+                  >
+                    <Square className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="h-10 w-10 rounded-2xl hover:bg-destructive hover:text-destructive-foreground"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => windowApi?.close()}
+                    aria-label="关闭"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </header>
 
-          <div className="flex items-center gap-1">
-            <Button
-              className="app-no-drag h-8 w-10 rounded-md"
-              size="icon"
-              variant="ghost"
-              onClick={() => windowApi?.minimize()}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Button
-              className="app-no-drag h-8 w-10 rounded-md"
-              size="icon"
-              variant="ghost"
-              onClick={() => windowApi?.toggleMaximize()}
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-            <Button
-              className="app-no-drag h-8 w-10 rounded-md hover:bg-destructive hover:text-destructive-foreground"
-              size="icon"
-              variant="ghost"
-              onClick={() => windowApi?.close()}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+              <main className="min-h-0 flex-1 overflow-hidden p-4 pt-3">
+                <Outlet />
+              </main>
+            </div>
           </div>
-        </header>
-
-        <main className="h-[calc(100vh-3rem)] overflow-hidden">
-          <Outlet />
-        </main>
+        </div>
       </div>
 
       <Dialog open={openAdd} onOpenChange={setOpenAdd}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>添加程序</DialogTitle>
             <DialogDescription>添加自定义工具（可执行文件路径）</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>名称</Label>
               <Input value={toolName} onChange={(e) => setToolName(e.target.value)} />
@@ -297,7 +335,7 @@ export function AppShell() {
                 </Button>
               </div>
             </div>
-            <div className="flex items-center justify-between gap-4">
+            <div className="app-setting-row flex items-center justify-between gap-4">
               <Label>GUI 程序</Label>
               <Switch checked={isGui} onCheckedChange={setIsGui} />
             </div>
@@ -315,7 +353,7 @@ export function AppShell() {
       </Dialog>
 
       <Dialog open={openAbout} onOpenChange={setOpenAbout}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>关于 CodeV</DialogTitle>
             <DialogDescription>一站式工具入口，旨在帮助 AI Coding 提效</DialogDescription>

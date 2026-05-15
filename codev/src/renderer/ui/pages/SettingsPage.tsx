@@ -1,8 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
+import {
+  Download,
+  Palette,
+  Shield,
+  SlidersHorizontal,
+  Terminal as TerminalIcon,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -15,8 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/renderer/state/configStore';
 import { type AppConfig, type ProxyType } from '@/shared/types';
 
@@ -48,6 +54,40 @@ function textToEnvMap(text: string): Record<string, string> {
   return out;
 }
 
+const settingTabs = [
+  {
+    id: 'appearance',
+    label: '外观',
+    description: '主题与视觉表现',
+    icon: Palette,
+  },
+  {
+    id: 'download',
+    label: '下载',
+    description: '并发与临时目录',
+    icon: Download,
+  },
+  {
+    id: 'proxy',
+    label: '代理',
+    description: '网络连接参数',
+    icon: Shield,
+  },
+  {
+    id: 'env',
+    label: '环境',
+    description: '全局与工具变量',
+    icon: TerminalIcon,
+  },
+  {
+    id: 'advanced',
+    label: '高级',
+    description: '启动与日志行为',
+    icon: SlidersHorizontal,
+  },
+] as const;
+
+/** 设置页面。 */
 export function SettingsPage() {
   const { config, update, loading, error } = useConfigStore();
   const [draft, setDraft] = useState<AppConfig | null>(null);
@@ -69,10 +109,14 @@ export function SettingsPage() {
     return !!draft && !loading;
   }, [draft, loading]);
 
+  const currentTab = useMemo(() => {
+    return settingTabs.find((item) => item.id === activeTab) ?? settingTabs[0];
+  }, [activeTab]);
+
   if (!draft) {
     return (
-      <div className="h-full overflow-auto p-6">
-        <div className="text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center">
+        <div className="app-setting-preview min-w-[320px] text-sm text-muted-foreground">
           {error ? `加载失败：${error}` : '正在加载配置...'}
         </div>
       </div>
@@ -80,359 +124,450 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="mb-4 text-lg font-semibold">设置</div>
+    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_104px] gap-4">
+      <section className="app-soft-panel flex min-h-0 flex-col rounded-[26px] p-4">
+        <div className="border-b border-border/60 pb-4">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            Styles
+          </div>
+          <div className="mt-2 text-2xl font-semibold tracking-tight">{currentTab.label}设置</div>
+          <div className="mt-1 text-sm text-muted-foreground">{currentTab.description}</div>
+        </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="appearance">外观设置</TabsTrigger>
-          <TabsTrigger value="download">下载设置</TabsTrigger>
-          <TabsTrigger value="proxy">代理设置</TabsTrigger>
-          <TabsTrigger value="env">环境设置</TabsTrigger>
-          <TabsTrigger value="advanced">高级设置</TabsTrigger>
-        </TabsList>
-
-        <AnimatePresence mode="wait">
-          {activeTab === 'appearance' ? (
-            <TabsContent key="appearance" value="appearance" forceMount asChild>
+        <div className="min-h-0 flex-1 overflow-auto py-4 pr-1">
+          <AnimatePresence mode="wait">
+            {activeTab === 'appearance' ? (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                key="appearance"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="space-y-4"
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>外观设置</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <Label>暗黑模式</Label>
-                      <Switch
-                        checked={draft.ui.theme === 'dark'}
-                        onCheckedChange={(checked) => {
+                <div className="app-setting-row space-y-4">
+                  <div>
+                    <div className="text-lg font-semibold">主题模式</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      在浅色与暗色工作台之间切换，保持左侧导航的深色质感。
+                    </div>
+                  </div>
+                  <div className="app-segmented">
+                    {(['light', 'dark'] as const).map((theme) => (
+                      <button
+                        key={theme}
+                        data-state={draft.ui.theme === theme ? 'active' : 'inactive'}
+                        type="button"
+                        className="app-segmented-item"
+                        onClick={() =>
                           setDraft({
                             ...draft,
-                            ui: { ...draft.ui, theme: checked ? 'dark' : 'light' },
-                          });
-                        }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </TabsContent>
-          ) : null}
+                            ui: { ...draft.ui, theme },
+                          })
+                        }
+                      >
+                        {theme === 'light' ? '浅色' : '暗色'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          {activeTab === 'download' ? (
-            <TabsContent key="download" value="download" forceMount asChild>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>下载设置</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label>下载临时目录</Label>
-                      <Input
-                        value={draft.download.tempDir}
-                        onChange={(e) => {
-                          setDraft({
-                            ...draft,
-                            download: { ...draft.download, tempDir: e.target.value },
-                          });
-                        }}
-                        placeholder="留空表示使用默认临时目录"
-                      />
+                <div className="app-setting-preview space-y-4">
+                  <div className="text-sm font-medium">控件预览</div>
+                  <div className="app-segmented">
+                    <button data-state="active" type="button" className="app-segmented-item">
+                      按钮
+                    </button>
+                    <button data-state="inactive" type="button" className="app-segmented-item">
+                      输入框
+                    </button>
+                  </div>
+                  <div className="space-y-3 rounded-2xl bg-card/70 p-4">
+                    <Input placeholder="输入预览" />
+                    <Input value="Error preview" readOnly className="border-destructive/45" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">强调开关</span>
+                      <Switch checked />
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>同时下载任务数</Label>
-                      <Input
-                        value={String(draft.download.concurrency)}
-                        onChange={(e) => {
-                          setDraft({
-                            ...draft,
-                            download: {
-                              ...draft.download,
-                              concurrency: toNumber(e.target.value, 3),
-                            },
-                          });
-                        }}
-                        inputMode="numeric"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <Label>下载完成提示</Label>
-                      <Switch
-                        checked={draft.download.notifyOnComplete}
-                        onCheckedChange={(checked) => {
-                          setDraft({
-                            ...draft,
-                            download: { ...draft.download, notifyOnComplete: checked },
-                          });
-                        }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </TabsContent>
-          ) : null}
-
-          {activeTab === 'proxy' ? (
-            <TabsContent key="proxy" value="proxy" forceMount asChild>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>代理设置</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label>类型</Label>
-                      <Input
-                        value={draft.proxy.type}
-                        onChange={(e) => {
-                          setDraft({
-                            ...draft,
-                            proxy: { ...draft.proxy, type: e.target.value as ProxyType },
-                          });
-                        }}
-                        placeholder="none / http / socks5"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-2">
-                        <Label>地址</Label>
-                        <Input
-                          value={draft.proxy.host}
-                          onChange={(e) => {
-                            setDraft({
-                              ...draft,
-                              proxy: { ...draft.proxy, host: e.target.value },
-                            });
-                          }}
-                          placeholder="127.0.0.1"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Label>端口</Label>
-                        <Input
-                          value={draft.proxy.port ? String(draft.proxy.port) : ''}
-                          onChange={(e) => {
-                            setDraft({
-                              ...draft,
-                              proxy: { ...draft.proxy, port: toNumber(e.target.value, 0) },
-                            });
-                          }}
-                          inputMode="numeric"
-                          placeholder="7890"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-2">
-                        <Label>用户名</Label>
-                        <Input
-                          value={draft.proxy.username}
-                          onChange={(e) => {
-                            setDraft({
-                              ...draft,
-                              proxy: { ...draft.proxy, username: e.target.value },
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Label>密码</Label>
-                        <Input
-                          value={draft.proxy.password}
-                          onChange={(e) => {
-                            setDraft({
-                              ...draft,
-                              proxy: { ...draft.proxy, password: e.target.value },
-                            });
-                          }}
-                          type="password"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </TabsContent>
-          ) : null}
-
-          {activeTab === 'env' ? (
-            <TabsContent key="env" value="env" forceMount asChild>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>全局环境变量</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-2">
-                      <Label>每行一个，格式：KEY=VALUE</Label>
-                      <Textarea
-                        rows={10}
-                        value={envMapToText(draft.env.global)}
-                        onChange={(e) => {
-                          setDraft({
-                            ...draft,
-                            env: { ...draft.env, global: textToEnvMap(e.target.value) },
-                          });
-                        }}
-                        placeholder="HTTP_PROXY=http://127.0.0.1:7890"
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>工具环境变量</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-2">
-                        <Label>选择工具</Label>
-                        <Select value={envToolId} onValueChange={setEnvToolId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择工具" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              <SelectLabel>工具</SelectLabel>
-                              {draft.tools.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>
-                                  {t.name}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label>每行一个，格式：KEY=VALUE</Label>
-                        <Textarea
-                          rows={10}
-                          value={envMapToText(draft.env.perTool[envToolId] ?? {})}
-                          onChange={(e) => {
-                            setDraft({
-                              ...draft,
-                              env: {
-                                ...draft.env,
-                                perTool: {
-                                  ...draft.env.perTool,
-                                  [envToolId]: textToEnvMap(e.target.value),
-                                },
-                              },
-                            });
-                          }}
-                          placeholder="PATH=C:\\Tools\\bin;%PATH%"
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+                    <Button className="w-full">保存并应用</Button>
+                  </div>
                 </div>
               </motion.div>
-            </TabsContent>
-          ) : null}
+            ) : null}
 
-          {activeTab === 'advanced' ? (
-            <TabsContent key="advanced" value="advanced" forceMount asChild>
+            {activeTab === 'download' ? (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                key="download"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="space-y-4"
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>高级设置</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <Label>开机自启</Label>
-                      <Switch
-                        checked={draft.advanced.autoStart}
-                        onCheckedChange={(checked) => {
+                <div className="app-setting-row space-y-3">
+                  <div>
+                    <div className="text-lg font-semibold">下载目录</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      留空时使用系统默认目录，也可以指定固定缓存路径。
+                    </div>
+                  </div>
+                  <Input
+                    value={draft.download.tempDir}
+                    onChange={(e) => {
+                      setDraft({
+                        ...draft,
+                        download: { ...draft.download, tempDir: e.target.value },
+                      });
+                    }}
+                    placeholder="留空表示使用默认临时目录"
+                  />
+                </div>
+
+                <div className="app-setting-row space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-lg font-semibold">同时下载任务数</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        通过滑杆调节队列并发，兼顾速度与稳定性。
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-card px-4 py-2 text-lg font-semibold">
+                      {draft.download.concurrency}
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={draft.download.concurrency}
+                    className="h-2 w-full cursor-pointer accent-[hsl(var(--primary))]"
+                    onChange={(e) => {
+                      setDraft({
+                        ...draft,
+                        download: {
+                          ...draft.download,
+                          concurrency: toNumber(e.target.value, 3),
+                        },
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="app-setting-row flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold">下载完成提示</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      安装包下载完成后，立即在桌面端显示提醒。
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.download.notifyOnComplete}
+                    onCheckedChange={(checked) => {
+                      setDraft({
+                        ...draft,
+                        download: { ...draft.download, notifyOnComplete: checked },
+                      });
+                    }}
+                  />
+                </div>
+              </motion.div>
+            ) : null}
+
+            {activeTab === 'proxy' ? (
+              <motion.div
+                key="proxy"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="app-setting-row space-y-4">
+                  <div>
+                    <div className="text-lg font-semibold">代理类型</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      选择当前网络连接方式，推荐只保留常用选项。
+                    </div>
+                  </div>
+                  <div className="app-segmented">
+                    {(['none', 'http', 'socks5'] as const).map((type) => (
+                      <button
+                        key={type}
+                        data-state={draft.proxy.type === type ? 'active' : 'inactive'}
+                        type="button"
+                        className="app-segmented-item"
+                        onClick={() =>
                           setDraft({
                             ...draft,
-                            advanced: { ...draft.advanced, autoStart: checked },
-                          });
-                        }}
-                      />
+                            proxy: { ...draft.proxy, type: type as ProxyType },
+                          })
+                        }
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="app-setting-row space-y-2">
+                    <Label>地址</Label>
+                    <Input
+                      value={draft.proxy.host}
+                      onChange={(e) => {
+                        setDraft({
+                          ...draft,
+                          proxy: { ...draft.proxy, host: e.target.value },
+                        });
+                      }}
+                      placeholder="127.0.0.1"
+                    />
+                  </div>
+                  <div className="app-setting-row space-y-2">
+                    <Label>端口</Label>
+                    <Input
+                      value={draft.proxy.port ? String(draft.proxy.port) : ''}
+                      onChange={(e) => {
+                        setDraft({
+                          ...draft,
+                          proxy: { ...draft.proxy, port: toNumber(e.target.value, 0) },
+                        });
+                      }}
+                      inputMode="numeric"
+                      placeholder="7890"
+                    />
+                  </div>
+                  <div className="app-setting-row space-y-2">
+                    <Label>用户名</Label>
+                    <Input
+                      value={draft.proxy.username}
+                      onChange={(e) => {
+                        setDraft({
+                          ...draft,
+                          proxy: { ...draft.proxy, username: e.target.value },
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="app-setting-row space-y-2">
+                    <Label>密码</Label>
+                    <Input
+                      value={draft.proxy.password}
+                      onChange={(e) => {
+                        setDraft({
+                          ...draft,
+                          proxy: { ...draft.proxy, password: e.target.value },
+                        });
+                      }}
+                      type="password"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            ) : null}
+
+            {activeTab === 'env' ? (
+              <motion.div
+                key="env"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="grid grid-cols-1 gap-4 xl:grid-cols-2"
+              >
+                <div className="app-setting-row space-y-3">
+                  <div>
+                    <div className="text-lg font-semibold">全局环境变量</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      对所有工具统一生效，按 `KEY=VALUE` 逐行填写。
                     </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <Label>关闭最小化到托盘</Label>
-                      <Switch
-                        checked={draft.ui.closeToTray}
-                        onCheckedChange={(checked) => {
-                          setDraft({
-                            ...draft,
-                            ui: { ...draft.ui, closeToTray: checked },
-                          });
-                        }}
-                      />
+                  </div>
+                  <Textarea
+                    rows={12}
+                    value={envMapToText(draft.env.global)}
+                    onChange={(e) => {
+                      setDraft({
+                        ...draft,
+                        env: { ...draft.env, global: textToEnvMap(e.target.value) },
+                      });
+                    }}
+                    placeholder="HTTP_PROXY=http://127.0.0.1:7890"
+                  />
+                </div>
+
+                <div className="app-setting-row space-y-3">
+                  <div>
+                    <div className="text-lg font-semibold">工具环境变量</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      为指定工具覆盖环境参数，适合代理、路径或实验配置。
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>日志级别</Label>
-                      <Input
-                        value={draft.advanced.logLevel}
-                        onChange={(e) => {
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>选择工具</Label>
+                    <Select value={envToolId} onValueChange={setEnvToolId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择工具" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>工具</SelectLabel>
+                          {draft.tools.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Textarea
+                    rows={12}
+                    value={envMapToText(draft.env.perTool[envToolId] ?? {})}
+                    onChange={(e) => {
+                      setDraft({
+                        ...draft,
+                        env: {
+                          ...draft.env,
+                          perTool: {
+                            ...draft.env.perTool,
+                            [envToolId]: textToEnvMap(e.target.value),
+                          },
+                        },
+                      });
+                    }}
+                    placeholder="PATH=C:\\Tools\\bin;%PATH%"
+                  />
+                </div>
+              </motion.div>
+            ) : null}
+
+            {activeTab === 'advanced' ? (
+              <motion.div
+                key="advanced"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="app-setting-row flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold">开机自启</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      启动系统后自动拉起 CodeV，适合常驻工具管理场景。
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.advanced.autoStart}
+                    onCheckedChange={(checked) => {
+                      setDraft({
+                        ...draft,
+                        advanced: { ...draft.advanced, autoStart: checked },
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="app-setting-row flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold">关闭最小化到托盘</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      关闭窗口时保留后台进程，可继续通过托盘恢复。
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.ui.closeToTray}
+                    onCheckedChange={(checked) => {
+                      setDraft({
+                        ...draft,
+                        ui: { ...draft.ui, closeToTray: checked },
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="app-setting-row space-y-4">
+                  <div>
+                    <div className="text-lg font-semibold">日志级别</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      仅保留常见级别，通过段控件快速切换。
+                    </div>
+                  </div>
+                  <div className="app-segmented">
+                    {(['error', 'warn', 'info', 'debug'] as const).map((level) => (
+                      <button
+                        key={level}
+                        data-state={draft.advanced.logLevel === level ? 'active' : 'inactive'}
+                        type="button"
+                        className="app-segmented-item min-w-[78px]"
+                        onClick={() =>
                           setDraft({
                             ...draft,
                             advanced: {
                               ...draft.advanced,
-                              logLevel: e.target.value as AppConfig['advanced']['logLevel'],
+                              logLevel: level as AppConfig['advanced']['logLevel'],
                             },
-                          });
-                        }}
-                        placeholder="error / warn / info / debug"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                          })
+                        }
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </motion.div>
-            </TabsContent>
-          ) : null}
-        </AnimatePresence>
-      </Tabs>
+            ) : null}
+          </AnimatePresence>
+        </div>
 
-      <div className="mt-6 flex items-center gap-3">
-        <Button
-          disabled={!canSave}
-          onClick={() => {
-            void update(draft);
-          }}
-        >
-          保存
-        </Button>
-        <Button
-          variant="secondary"
-          disabled={!config}
-          onClick={() => {
-            if (config) setDraft(config);
-          }}
-        >
-          重置
-        </Button>
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
-      </div>
+        <div className="flex items-center gap-3 border-t border-border/60 pt-4">
+          <Button
+            disabled={!canSave}
+            onClick={() => {
+              void update(draft);
+            }}
+          >
+            保存
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!config}
+            onClick={() => {
+              if (config) setDraft(config);
+            }}
+          >
+            重置
+          </Button>
+          {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        </div>
+      </section>
+
+      <aside className="app-soft-panel min-h-0 rounded-[26px] p-3">
+        <div className="flex h-full min-h-0 flex-col items-stretch gap-3 overflow-auto pr-1">
+          {settingTabs.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.id === activeTab;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-[22px] border px-3 py-4 text-center transition-[background-color,color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5',
+                  isActive
+                    ? 'border-border/70 bg-card text-foreground shadow-[0_18px_36px_-28px_rgb(36,27,20,0.45)]'
+                    : 'border-transparent bg-transparent text-muted-foreground hover:bg-card/70 hover:text-foreground',
+                )}
+                onClick={() => setActiveTab(item.id)}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
     </div>
   );
 }

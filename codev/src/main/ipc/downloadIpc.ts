@@ -1,8 +1,10 @@
-import { BrowserWindow, ipcMain, type WebContents } from 'electron';
+import { BrowserWindow, ipcMain, shell, type WebContents } from 'electron';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
 
 import {
   fetchLatestReleases,
-  pickExeAsset,
+  pickInstallerAsset,
 } from '@/main/services/githubReleases';
 import { type ConfigService } from '@/main/services/configService';
 import { type DownloadManager } from '@/main/services/downloadManager';
@@ -12,6 +14,17 @@ export function registerDownloadIpc(
   downloadManager: DownloadManager,
   renderer: WebContents,
 ) {
+  ipcMain.handle('downloads:openDir', async () => {
+    const cfg = await configService.load();
+    const baseDir = cfg.download.tempDir
+      ? cfg.download.tempDir
+      : path.join(process.env['TEMP'] || process.cwd(), 'codev-downloads');
+    await fsp.mkdir(baseDir, { recursive: true });
+    const err = await shell.openPath(baseDir);
+    if (err) return { ok: false, error: err } as const;
+    return { ok: true, dir: baseDir } as const;
+  });
+
   ipcMain.handle('downloads:list', () => {
     return downloadManager.list();
   });
@@ -23,7 +36,7 @@ export function registerDownloadIpc(
   });
 
   ipcMain.handle('downloads:cancel', async (_e, taskId: string) => {
-    downloadManager.cancel(taskId);
+    await downloadManager.cancel(taskId);
     renderer.send('downloads:changed', downloadManager.list());
   });
 
@@ -50,8 +63,12 @@ export function registerDownloadIpc(
         : releases[0];
       if (!release) return { ok: false, error: '未找到 Release' } as const;
 
-      const asset = pickExeAsset(release);
-      if (!asset) return { ok: false, error: '未找到可用的 .exe 资产' } as const;
+      const asset = pickInstallerAsset(toolId, release);
+      if (!asset) {
+        if (toolId === 'cc-switch')
+          return { ok: false, error: '未找到可用的安装包（.exe/.msi）' } as const;
+        return { ok: false, error: '未找到可用的 .exe 资产' } as const;
+      }
 
       const task = await downloadManager.add(
         win,
