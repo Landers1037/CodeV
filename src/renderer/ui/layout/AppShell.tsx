@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Download,
   Home,
@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/renderer/state/configStore';
+import { type AppUpdateResult } from '@/shared/appUpdateTypes';
 import { type ToolMeta } from '@/shared/types';
 import appLogo from '@/renderer/assets/logo.png';
 
@@ -51,6 +52,9 @@ export function AppShell() {
   const { config, update } = useConfigStore();
   const [openAdd, setOpenAdd] = useState(false);
   const [openAbout, setOpenAbout] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
   const [toolName, setToolName] = useState('');
   const [toolCategory, setToolCategory] = useState('');
   const [exePath, setExePath] = useState('');
@@ -75,6 +79,36 @@ export function AppShell() {
     }
     return out;
   }, [config?.categories, config?.tools]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void window.codev?.app?.getVersion().then((version) => {
+      if (!mounted || !version) return;
+      setAppVersion(version);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const checkForUpdates = async () => {
+    setCheckingUpdate(true);
+    setUpdateMessage('正在检查更新...');
+    try {
+      const result: AppUpdateResult | undefined = await window.codev?.app?.checkForUpdates();
+      if (!result) {
+        setUpdateMessage('检查更新失败，请稍后重试。');
+        return;
+      }
+      setUpdateMessage(result.message);
+    } catch (error) {
+      setUpdateMessage((error as Error).message || '检查更新失败，请稍后重试。');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith('/downloads')) {
@@ -154,7 +188,7 @@ export function AppShell() {
             <aside className="app-sidebar ml-2 flex h-[calc(100vh-16px)] w-[72px] shrink-0 flex-col items-center justify-between rounded-[10px] px-4 py-5">
             <div className="flex flex-col items-center gap-6">
               <div className="app-drag flex w-full justify-center pb-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#2a2a2a]/50 shadow-[inset_0_1px_0_rgb(255,255,255,0.14),0_14px_28px_-18px_rgb(0,0,0,0.65)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[16px]">
                   <img src={appLogo} alt="CodeV" className="h-12 w-12 rounded-xl object-contain" />
                 </div>
               </div>
@@ -360,6 +394,18 @@ export function AppShell() {
           </DialogHeader>
 
           <div className="space-y-4 text-sm">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-muted/20 px-6 py-8 text-center">
+              <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-background/80 shadow-sm">
+                <img src={appLogo} alt="CodeV" className="h-16 w-16 object-contain" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xl font-semibold text-foreground">CodeV</div>
+                <div className="text-sm text-muted-foreground">
+                  当前版本 {appVersion ? `v${appVersion}` : '加载中...'}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="font-medium text-foreground">功能</div>
               <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
@@ -381,10 +427,20 @@ export function AppShell() {
             </div>
           </div>
 
-          <div className="mt-2 flex justify-end">
-            <Button variant="secondary" onClick={() => setOpenAbout(false)}>
-              关闭
-            </Button>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="min-h-5 flex-1 pr-3 text-sm text-muted-foreground">{updateMessage}</div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => void checkForUpdates()}
+                disabled={checkingUpdate}
+              >
+                {checkingUpdate ? '检查中...' : '检查更新'}
+              </Button>
+              <Button variant="secondary" onClick={() => setOpenAbout(false)}>
+                关闭
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

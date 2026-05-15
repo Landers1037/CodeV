@@ -12,8 +12,8 @@ export async function setupTray(
   configService: ConfigService,
 ): Promise<TrayController> {
   const trayIconPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', 'tray.png')
-    : path.join(process.cwd(), 'assets', 'tray.png');
+    ? path.join(process.resourcesPath, 'assets', 'icon.png')
+    : path.join(process.cwd(), 'assets', 'icon.png');
   const tray = new Tray(trayIconPath);
   tray.setToolTip('CodeV');
 

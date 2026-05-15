@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
+import { registerAppIpc } from '@/main/ipc/appIpc';
 import { registerConfigIpc } from '@/main/ipc/configIpc';
 import { registerDialogIpc } from '@/main/ipc/dialogIpc';
 import { registerDownloadIpc } from '@/main/ipc/downloadIpc';
@@ -88,6 +89,7 @@ function registerIpcHandlers() {
 app.on('ready', () => {
   const win = createWindow();
   registerIpcHandlers();
+  registerAppIpc(configService);
   registerConfigIpc(configService, win.webContents);
   registerToolsIpc(configService, toolLauncher, win.webContents);
   registerDownloadIpc(configService, downloadManager, win.webContents);

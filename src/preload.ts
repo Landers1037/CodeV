@@ -1,9 +1,16 @@
 import { clipboard, contextBridge, ipcRenderer } from 'electron';
 
+import { type AppUpdateResult } from '@/shared/appUpdateTypes';
 import { type AppConfig } from '@/shared/types';
 import { type DownloadTask } from '@/shared/downloadTypes';
 
 contextBridge.exposeInMainWorld('codev', {
+  app: {
+    /** 获取应用版本。 */
+    getVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
+    /** 检查应用更新。 */
+    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates') as Promise<AppUpdateResult>,
+  },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),

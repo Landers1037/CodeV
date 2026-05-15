@@ -1,9 +1,16 @@
+import { type AppUpdateResult } from '@/shared/appUpdateTypes';
 import { type AppConfig } from '@/shared/types';
 import { type DownloadTask } from '@/shared/downloadTypes';
 
 declare global {
   interface Window {
     codev?: {
+      app?: {
+        /** 获取应用版本。 */
+        getVersion: () => Promise<string>;
+        /** 检查应用更新。 */
+        checkForUpdates: () => Promise<AppUpdateResult>;
+      };
       window?: {
         minimize: () => Promise<void> | void;
         toggleMaximize: () => Promise<void> | void;
