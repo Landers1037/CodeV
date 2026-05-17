@@ -1,8 +1,10 @@
-import { app } from 'electron';
-import got from 'got';
+import { app, type WebContents } from 'electron';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+
+import { downloadBufferWithHeaders, downloadText } from '@/main/services/gotDownloader';
+import { type ProxyConfig } from '@/shared/types';
 
 function cacheDir() {
   return path.join(app.getPath('home'), '.config', 'codev', 'bookmark');
@@ -41,21 +43,46 @@ function extFromContentType(contentType: string) {
 }
 
 export class BookmarkService {
-  async fetchMeta(url: string): Promise<{ title: string; iconUrl: string }> {
-    const res = await got(url, { timeout: { request: 5000 }, retry: { limit: 1 } });
-    console.log('fetchMeta', url, res.statusCode);
-    const html = res.body || '';
+  async fetchMeta(
+    url: string,
+    opts?: {
+      proxy?: ProxyConfig;
+      timeoutMs?: number;
+      renderer?: WebContents;
+      toastTitle?: string;
+      timeoutToastMessage?: string;
+    },
+  ): Promise<{ title: string; iconUrl: string }> {
+    const html = await downloadText(url, {
+      proxy: opts?.proxy,
+      timeoutMs: opts?.timeoutMs ?? 5000,
+      renderer: opts?.renderer,
+      toastTitle: opts?.toastTitle ?? '书签添加提醒',
+      timeoutToastMessage: opts?.timeoutToastMessage,
+    });
     const title = pickTitle(html);
     const href = pickIconHref(html);
     const iconUrl = href ? new URL(href, url).toString() : new URL('/favicon.ico', url).toString();
     return { title, iconUrl };
   }
 
-  async cacheFaviconByIconUrl(pageUrl: string, iconUrl: string): Promise<string> {
-    const res = await got(iconUrl, {
-      timeout: { request: 5000 },
-      retry: { limit: 1 },
-      responseType: 'buffer',
+  async cacheFaviconByIconUrl(
+    pageUrl: string,
+    iconUrl: string,
+    opts?: {
+      proxy?: ProxyConfig;
+      timeoutMs?: number;
+      renderer?: WebContents;
+      toastTitle?: string;
+      timeoutToastMessage?: string;
+    },
+  ): Promise<string> {
+    const res = await downloadBufferWithHeaders(iconUrl, {
+      proxy: opts?.proxy,
+      timeoutMs: opts?.timeoutMs ?? 5000,
+      renderer: opts?.renderer,
+      toastTitle: opts?.toastTitle ?? '书签添加提醒',
+      timeoutToastMessage: opts?.timeoutToastMessage,
     });
     const contentType = res.headers['content-type'] ? String(res.headers['content-type']) : '';
     const ext = extFromContentType(contentType) || path.extname(new URL(iconUrl).pathname) || '.ico';
@@ -67,9 +94,18 @@ export class BookmarkService {
     return targetPath;
   }
 
-  async cacheFavicon(pageUrl: string): Promise<string> {
-    const { iconUrl } = await this.fetchMeta(pageUrl);
-    return this.cacheFaviconByIconUrl(pageUrl, iconUrl);
+  async cacheFavicon(
+    pageUrl: string,
+    opts?: {
+      proxy?: ProxyConfig;
+      timeoutMs?: number;
+      renderer?: WebContents;
+      toastTitle?: string;
+      timeoutToastMessage?: string;
+    },
+  ): Promise<string> {
+    const { iconUrl } = await this.fetchMeta(pageUrl, opts);
+    return this.cacheFaviconByIconUrl(pageUrl, iconUrl, opts);
   }
 
   async deleteCachedIcon(iconPath: string): Promise<void> {

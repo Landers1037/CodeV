@@ -80,6 +80,7 @@ declare global {
         remove: (bookmarkId: string) => Promise<AppConfig>;
         update: (bookmarkId: string, payload: { url: string; title: string }) => Promise<AppConfig>;
         open: (url: string) => Promise<void>;
+        loadIcon: (filePath: string) => string;
       };
       notify?: {
         onToast: (listener: (payload: { title: string; message: string }) => void) => () => void;

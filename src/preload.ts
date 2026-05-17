@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld('codev', {
     update: (bookmarkId: string, payload: { url: string; title: string }) =>
       ipcRenderer.invoke('bookmarks:update', bookmarkId, payload) as Promise<AppConfig>,
     open: (url: string) => ipcRenderer.invoke('bookmarks:open', url) as Promise<void>,
+    loadIcon: (filePath: string) => ipcRenderer.sendSync('bookmarks:load', filePath) as string,
   },
   notify: {
     onToast: (listener: (payload: { title: string; message: string }) => void) => {

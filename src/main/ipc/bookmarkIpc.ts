@@ -1,9 +1,10 @@
 import { ipcMain, shell, type WebContents } from 'electron';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 
 import { type ConfigService } from '@/main/services/configService';
 import { BookmarkService } from '@/main/services/bookmarkService';
-import { type AppConfig } from '@/shared/types';
+import { type AppConfig, type ProxyConfig } from '@/shared/types';
 
 function normalizeUrl(url: string) {
   const u = new URL(url);
@@ -18,18 +19,23 @@ async function resolveBookmarkIcon(
   bookmarkService: BookmarkService,
   renderer: WebContents,
   url: string,
+  proxy: ProxyConfig,
 ): Promise<string> {
   try {
-    const meta = await bookmarkService.fetchMeta(url);
+    const meta = await bookmarkService.fetchMeta(url, {
+      proxy,
+      renderer,
+      toastTitle: '书签编辑提醒',
+      timeoutMs: 5000,
+    });
     if (!meta.iconUrl) return '';
-    return await bookmarkService.cacheFaviconByIconUrl(url, meta.iconUrl);
-  } catch (err) {
-    if (isTimeoutError(err)) {
-      renderer.send('notify:toast', {
-        title: '书签编辑提醒',
-        message: `更新 URL 后请求图标超时（5s）：${url}`,
-      });
-    }
+    return await bookmarkService.cacheFaviconByIconUrl(url, meta.iconUrl, {
+      proxy,
+      renderer,
+      toastTitle: '书签编辑提醒',
+      timeoutMs: 5000,
+    });
+  } catch {
     return '';
   }
 }
@@ -61,15 +67,16 @@ export function registerBookmarkIpc(configService: ConfigService, renderer: WebC
     let meta: { title: string; iconUrl: string } | null = null;
     let fallbackTitle = '';
     try {
-      meta = await bookmarkService.fetchMeta(url);
+      meta = await bookmarkService.fetchMeta(url, {
+        proxy: cfg.proxy,
+        renderer,
+        toastTitle: '书签添加提醒',
+        timeoutMs: 5000,
+        timeoutToastMessage: `请求超时（5s），已将 Title 设为 URL：${url}`,
+      });
     } catch (err) {
       fallbackTitle = url;
-      if (isTimeoutError(err)) {
-        renderer.send('notify:toast', {
-          title: '书签添加提醒',
-          message: `请求超时（5s），已将 Title 设为 URL：${url}`,
-        });
-      } else {
+      if (!isTimeoutError(err)) {
         renderer.send('notify:toast', {
           title: '书签添加提醒',
           message: `获取网页信息失败，已将 Title 设为 URL：${url}`,
@@ -80,7 +87,12 @@ export function registerBookmarkIpc(configService: ConfigService, renderer: WebC
     let iconPath = '';
     if (meta?.iconUrl) {
       try {
-        iconPath = await bookmarkService.cacheFaviconByIconUrl(url, meta.iconUrl);
+        iconPath = await bookmarkService.cacheFaviconByIconUrl(url, meta.iconUrl, {
+          proxy: cfg.proxy,
+          renderer,
+          toastTitle: '书签添加提醒',
+          timeoutMs: 5000,
+        });
       } catch {
         iconPath = '';
       }
@@ -125,7 +137,7 @@ export function registerBookmarkIpc(configService: ConfigService, renderer: WebC
 
       let nextIconPath = target.iconPath;
       if (nextUrl !== target.url) {
-        nextIconPath = await resolveBookmarkIcon(bookmarkService, renderer, nextUrl);
+        nextIconPath = await resolveBookmarkIcon(bookmarkService, renderer, nextUrl, cfg.proxy);
       }
 
       const nextBookmarks = (cfg.bookmarks ?? []).map((b) =>
@@ -151,5 +163,14 @@ export function registerBookmarkIpc(configService: ConfigService, renderer: WebC
   ipcMain.handle('bookmarks:open', async (_event, rawUrl: string) => {
     const url = normalizeUrl(String(rawUrl || '').trim());
     await shell.openExternal(url);
+  });
+
+  ipcMain.on('bookmarks:load', async (_event, iconPath: string) => {
+    try {
+      const data = fs.readFileSync(iconPath);
+      _event.returnValue = `data:image/${iconPath.split('.').pop()};base64,${data.toString('base64')}`;
+    } catch (e) {
+      _event.returnValue = '';
+    }
   });
 }

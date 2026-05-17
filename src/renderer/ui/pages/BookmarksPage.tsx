@@ -17,6 +17,13 @@ function fileUrl(filePath: string) {
   return `file:///${encodeURI(normalized)}`;
 }
 
+function loadIcon(filePath: string) {
+  const p = String(filePath || '').trim();
+  if (!p) return '';
+  const normalized = p.replaceAll('\\', '/');
+  return window.codev?.bookmarks?.loadIcon(normalized);
+}
+
 function hostFirstLetter(url: string) {
   try {
     const host = new URL(url).hostname || '';
@@ -141,7 +148,8 @@ export function BookmarksPage() {
           ) : (
             <div className="divide-y divide-border/50 rounded-xl border border-border/60">
               {bookmarks.map((b) => {
-                const icon = fileUrl(b.iconPath);
+                const icon = loadIcon(b.iconPath);
+                console.log('icon', icon);
                 const displayTitle = (b.title || '').trim();
                 return (
                   <div key={b.id} className="flex items-center gap-3 px-4 py-3">
