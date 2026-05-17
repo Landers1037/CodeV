@@ -37,6 +37,14 @@ export function registerDialogIpc(win: BrowserWindow) {
     return res.canceled ? '' : res.filePaths[0] || '';
   });
 
+  ipcMain.handle('dialog:openDirectory', async () => {
+    const res = await dialog.showOpenDialog(win, {
+      title: '选择目录',
+      properties: ['openDirectory'],
+    });
+    return res.canceled ? '' : res.filePaths[0] || '';
+  });
+
   ipcMain.handle('dialog:importToolIcon', async () => {
     const res = await dialog.showOpenDialog(win, {
       title: '上传程序图标',

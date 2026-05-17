@@ -28,12 +28,30 @@ export interface DownloadConfig {
 
 export type EnvMap = Record<string, string>;
 
+export type TerminalColorScheme =
+  | 'TokyoNight'
+  | 'AtomOneDark'
+  | 'AtomOneLight'
+  | 'Dracula'
+  | 'Github'
+  | 'Night Owl'
+  | 'Novel'
+  | 'Ocean'
+  | 'Solarized Dark'
+  | 'Solarized Light';
+
 /** 终端配置。 */
 export interface TerminalConfig {
+  /** 终端字体（主字体）。 */
+  fontFamily: string;
+  /** 终端字体大小。 */
+  fontSize: number;
   /** 渲染器类型。 */
   renderer: 'canvas' | 'html';
   /** 是否启用 GPU。 */
   gpu: boolean;
+  /** 终端配色方案。 */
+  colorScheme: TerminalColorScheme;
   /** 终端主题。 */
   theme: 'light' | 'dark' | 'solarized-dark' | 'solarized-light';
 }
@@ -74,10 +92,12 @@ export interface ToolMeta {
   logoPath: string;
   /** 工具分类。 */
   category: string;
+  /** 是否需要（支持）下载。为 false 时不支持下载能力。 */
+  needDownload: boolean;
   /** 工具来源。 */
-  source: ToolSource;
+  source?: ToolSource | null;
   /** 下载地址。 */
-  downloadUrl: string;
+  downloadUrl?: string;
   /** 手动配置的安装路径。 */
   installPath: string;
   /** 自动检测到的安装路径。 */
@@ -96,12 +116,59 @@ export interface ToolMeta {
   proxy: ProxyConfig;
 }
 
+export interface RepoConfig {
+  id: string;
+  path: string;
+}
+
+export interface BookmarkConfig {
+  id: string;
+  url: string;
+  title: string;
+  iconPath: string;
+}
+
+export interface RepoSummary {
+  id: string;
+  path: string;
+  name: string;
+  branch: string;
+  latestCommitOid: string;
+  latestCommitDate: string;
+}
+
+export interface RepoCommit {
+  oid: string;
+  parents: string[];
+  authorName: string;
+  authorEmail: string;
+  date: string;
+  message: string;
+}
+
+export interface RepoFileDiff {
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+  isBinary: boolean;
+  patch: string;
+}
+
+export interface RepoCommitDiff {
+  oid: string;
+  parentOid: string;
+  files: RepoFileDiff[];
+}
+
 /** 应用配置。 */
 export interface AppConfig {
   /** 配置版本。 */
   configVersion: number;
   /** 工具分类列表。 */
   categories: string[];
+  /** Git 仓库列表。 */
+  repos: RepoConfig[];
+  /** 网页书签列表。 */
+  bookmarks: BookmarkConfig[];
   /** 界面设置。 */
   ui: UiConfig;
   /** 下载设置。 */

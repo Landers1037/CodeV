@@ -13,7 +13,7 @@ import { type AppUpdateResult } from '@/shared/appUpdateTypes';
 
 const APP_REPO = 'Landers1037/CodeV';
 const FILE_NAME_PREFIX = 'CodeV-';
-const FILE_NAME_PATTERN = /^CodeV-(\d+\.\d+\.\d+)\.(exe|msi)$/i;
+const FILE_NAME_PATTERN = /^CodeV-(\d+\.\d+\.\d+)(?:\.setup)?\.(exe|msi)$/i;
 
 /** 解析版本字符串中的数字片段。 */
 function normalizeVersion(input: string): number[] {

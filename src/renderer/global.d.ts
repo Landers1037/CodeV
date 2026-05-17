@@ -1,5 +1,5 @@
 import { type AppUpdateResult } from '@/shared/appUpdateTypes';
-import { type AppConfig } from '@/shared/types';
+import { type AppConfig, type RepoCommit, type RepoCommitDiff, type RepoSummary } from '@/shared/types';
 import { type DownloadTask } from '@/shared/downloadTypes';
 
 declare global {
@@ -10,6 +10,10 @@ declare global {
         getVersion: () => Promise<string>;
         /** 检查应用更新。 */
         checkForUpdates: () => Promise<AppUpdateResult>;
+        openLogDir: () => Promise<{ ok: true; dir: string } | { ok: false; error: string }>;
+      };
+      system?: {
+        listFonts: () => Promise<string[]>;
       };
       window?: {
         minimize: () => Promise<void> | void;
@@ -19,6 +23,7 @@ declare global {
       dialog?: {
         openExe: () => Promise<string>;
         openImage: () => Promise<string>;
+        openDirectory: () => Promise<string>;
         importToolIcon: () => Promise<string>;
       };
       config?: {
@@ -62,6 +67,22 @@ declare global {
         createTool: (toolId: string) => Promise<string>;
         onData: (listener: (payload: { id: string; data: string }) => void) => () => void;
         onExit: (listener: (payload: { id: string }) => void) => () => void;
+      };
+      repos?: {
+        listSummaries: () => Promise<RepoSummary[]>;
+        add: (repoPath: string) => Promise<AppConfig>;
+        remove: (repoId: string) => Promise<AppConfig>;
+        listCommits: (repoId: string, depth?: number) => Promise<RepoCommit[]>;
+        getCommitDiff: (repoId: string, oid: string) => Promise<RepoCommitDiff>;
+      };
+      bookmarks?: {
+        add: (url: string) => Promise<AppConfig>;
+        remove: (bookmarkId: string) => Promise<AppConfig>;
+        update: (bookmarkId: string, payload: { url: string; title: string }) => Promise<AppConfig>;
+        open: (url: string) => Promise<void>;
+      };
+      notify?: {
+        onToast: (listener: (payload: { title: string; message: string }) => void) => () => void;
       };
     };
   }

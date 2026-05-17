@@ -12,6 +12,7 @@ import {
   Folder,
   Globe,
   Layers,
+  Loader2,
   Network,
   Pencil,
   Play,
@@ -69,6 +70,9 @@ import weztermIcon from '../../../../assets/wezterm-icon.svg';
 import zeroLimitIcon from '../../../../assets/zero-limit.png';
 import tabbyIcon from '../../../../assets/tabby.svg';
 import gitIcon from '../../../../assets/git-bash.svg';
+import cursorIcon from '../../../../assets/Cursor.png';
+import traeIcon from '../../../../assets/trae-logo.svg';
+import vscodeIcon from '../../../../assets/vscode-icon.svg';
 
 const bundledToolIcons: Record<string, string> = {
   'cc-switch': ccSwitchIcon,
@@ -82,6 +86,9 @@ const bundledToolIcons: Record<string, string> = {
   'zero-limit': zeroLimitIcon,
   tabby: tabbyIcon,
   git: gitIcon,
+  cursor: cursorIcon,
+  trae: traeIcon,
+  vscode: vscodeIcon,
 };
 
 function isTerminalToolId(id: string) {
@@ -150,7 +157,7 @@ function resolveCategoryIcon(categoryId: string, label: string) {
   if (v.includes('归档') || v.includes('archiv')) return Archive;
   if (v.includes('终端') || v.includes('terminal') || v.includes('shell')) return Terminal;
   if (v.includes('ai') || v.includes('模型') || v.includes('大模型')) return Sparkles;
-  if (v.includes('开发') || v.includes('dev') || v.includes('code')) return Code2;
+  if (v.includes('开发') || v.includes('dev') || v.includes('ide')) return Code2;
   if (v.includes('网络') || v.includes('proxy') || v.includes('vpn')) return Network;
   if (v.includes('安全') || v.includes('security')) return Shield;
   if (v.includes('数据') || v.includes('db') || v.includes('database')) return Database;
@@ -186,6 +193,7 @@ export function HomePage() {
   const { config, update } = useConfigStore();
   const [message, setMessage] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [scanningTools, setScanningTools] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
@@ -271,10 +279,10 @@ export function HomePage() {
   }, [toastMessage]);
 
   return (
-    <div className="flex h-full min-h-0 gap-4">
-      <aside className="app-soft-panel flex w-[290px] shrink-0 flex-col rounded-[24px] p-4">
+    <div className="flex h-full min-h-0 gap-4 select-none">
+      <aside className="app-soft-panel flex w-[290px] shrink-0 flex-col rounded-[24px] p-4 select-none">
         <div className="pb-4">
-          <div className="text-lg font-semibold tracking-tight">工具分类</div>
+          <div className="text-lg font-semibold tracking-tight select-none">工具分类</div>
           <div className="mt-1 text-sm text-muted-foreground">
             从左侧分组快速切换常用工具列表。
           </div>
@@ -338,7 +346,7 @@ export function HomePage() {
       </aside>
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid grid-cols-1 gap-4">
           <Card className="bg-card/74">
             <CardContent className="flex items-center justify-between gap-4 py-5">
               <div>
@@ -349,13 +357,27 @@ export function HomePage() {
               </div>
               <Button
                 variant="secondary"
-                onClick={() => {
+                disabled={scanningTools}
+                onClick={async () => {
+                  if (scanningTools) return;
                   setMessage('');
-                  void window.codev?.tools?.scan();
+                  setScanningTools(true);
+                  try {
+                    await window.codev?.tools?.scan();
+                    setToastMessage('扫描完毕');
+                  } catch {
+                    setToastMessage('扫描失败');
+                  } finally {
+                    setScanningTools(false);
+                  }
                 }}
               >
-                <RefreshCw className="h-4 w-4" />
-                扫描安装目录
+                {scanningTools ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {scanningTools ? '扫描中…' : '扫描安装目录'}
               </Button>
             </CardContent>
           </Card>
@@ -406,6 +428,7 @@ export function HomePage() {
                     {items.map((t) => {
                       const installed = !!(t.installPath || t.detectedInstallPath);
                       const canTerminal = installed && isTerminalToolId(t.id);
+                      const canDownload = t.needDownload !== false && t.source?.kind === 'githubRelease';
                       const iconSrc = resolveToolIcon(t);
                       const pathText =
                         t.installPath || t.detectedInstallPath || '未检测到安装路径';
@@ -439,16 +462,16 @@ export function HomePage() {
                                     'rounded-full px-2.5 py-1 text-xs font-medium',
                                     installed
                                       ? 'bg-primary/14 text-primary'
-                                      : t.source.scanOnly
+                                      : !canDownload
                                         ? 'bg-secondary text-muted-foreground'
                                         : 'bg-amber-500/14 text-amber-600 dark:text-amber-300',
                                   )}
                                 >
                                   {installed
                                     ? '已安装'
-                                    : t.source.scanOnly
-                                      ? '仅扫描'
-                                      : '可下载'}
+                                    : canDownload
+                                      ? '可下载'
+                                      : '仅扫描'}
                                 </span>
                               </div>
 

@@ -35,11 +35,13 @@ export function DownloadsPage() {
   }, []);
 
   const downloadableTools = useMemo(() => {
-    return (config?.tools ?? []).filter((t) => t.source.kind === 'githubRelease');
+    return (config?.tools ?? []).filter(
+      (t) => t.needDownload !== false && t.source?.kind === 'githubRelease',
+    );
   }, [config]);
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto p-6 select-none">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div className="text-lg font-semibold">下载管理</div>
         <div className="flex items-center gap-2">

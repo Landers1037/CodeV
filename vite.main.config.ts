@@ -8,4 +8,9 @@ export default defineConfig({
       '@': path.join(__dirname, 'src'),
     },
   },
+  build: {
+    rollupOptions: {
+      external: ['@lydell/node-pty'],
+    },
+  },
 });

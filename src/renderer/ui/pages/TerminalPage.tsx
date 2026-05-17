@@ -1,17 +1,39 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebglAddon } from 'xterm-addon-webgl';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import 'xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/renderer/state/configStore';
+import { type TerminalColorScheme } from '@/shared/types';
+import { getTerminalTheme } from '@/renderer/terminalThemes';
 
 type Session = { id: string; title: string };
 type ContextMenuState = { sessionId: string; x: number; y: number } | null;
+
+const XTERM_FONT_FALLBACK =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function normalizePrimaryFontFamily(value: unknown): string {
+  if (typeof value !== 'string') return 'Consolas';
+  const trimmed = value.trim().replaceAll('"', '').replaceAll("'", '');
+  return trimmed || 'Consolas';
+}
+
+function buildXtermFontFamily(primary: unknown): string {
+  const p = normalizePrimaryFontFamily(primary);
+  const escaped = p.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  return `"${escaped}", ${XTERM_FONT_FALLBACK}`;
+}
 
 /** 终端页面。 */
 export function TerminalPage() {
@@ -32,6 +54,11 @@ export function TerminalPage() {
   );
 
   const enableGpu = !!config?.terminal.gpu;
+  const rendererType = config?.terminal.renderer === 'html' ? 'dom' : 'canvas';
+  const colorScheme = (config?.terminal.colorScheme ?? 'TokyoNight') as TerminalColorScheme;
+  const xtermTheme = useMemo(() => getTerminalTheme(colorScheme), [colorScheme]);
+  const xtermFontFamily = useMemo(() => buildXtermFontFamily(config?.terminal.fontFamily), [config?.terminal.fontFamily]);
+  const xtermFontSize = useMemo(() => clampInt(config?.terminal.fontSize, 10, 100, 13), [config?.terminal.fontSize]);
 
   useEffect(() => {
     if (!window.codev?.terminal) return;
@@ -96,6 +123,9 @@ export function TerminalPage() {
     if (terminals.current.has(sessionId)) {
       const entry = terminals.current.get(sessionId);
       if (!entry) return;
+      entry.term.options.theme = xtermTheme;
+      entry.term.options.fontFamily = xtermFontFamily;
+      entry.term.options.fontSize = xtermFontSize;
       try {
         entry.fit.fit();
         const dims = entry.fit.proposeDimensions();
@@ -113,17 +143,15 @@ export function TerminalPage() {
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
-      fontFamily: 'Consolas, ui-monospace, SFMono-Regular, Menlo, Monaco, monospace',
-      fontSize: 13,
-      theme:
-        config?.ui.theme === 'dark'
-          ? { background: '#0b1220', foreground: '#e5e7eb' }
-          : { background: '#f8fafc', foreground: '#0f172a' },
+      fontFamily: xtermFontFamily,
+      fontSize: xtermFontSize,
+      rendererType,
+      theme: xtermTheme,
     });
     term.loadAddon(fit);
     term.open(container);
 
-    if (enableGpu) {
+    if (enableGpu && rendererType === 'canvas') {
       try {
         term.loadAddon(new WebglAddon());
       } catch {
@@ -158,7 +186,25 @@ export function TerminalPage() {
     ro.observe(container);
 
     return () => ro.disconnect();
-  }, [activeId, config?.ui.theme, enableGpu]);
+  }, [activeId, enableGpu, rendererType, xtermFontFamily, xtermFontSize, xtermTheme]);
+
+  useEffect(() => {
+    for (const entry of terminals.current.values()) {
+      entry.term.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
+
+  useEffect(() => {
+    for (const entry of terminals.current.values()) {
+      entry.term.options.fontFamily = xtermFontFamily;
+      entry.term.options.fontSize = xtermFontSize;
+      try {
+        entry.fit.fit();
+      } catch {
+        // ignore
+      }
+    }
+  }, [xtermFontFamily, xtermFontSize]);
 
   const createSession = async () => {
     const id = await window.codev?.terminal?.create();
@@ -192,17 +238,21 @@ export function TerminalPage() {
   );
 
   return (
-    <div className="h-full overflow-hidden p-6">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="text-lg font-semibold">终端</div>
-        <Button variant="secondary" onClick={() => void createSession()}>
-          新建终端
-        </Button>
-      </div>
-
-      <Card className="h-[calc(100%-3.5rem)] overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-2">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>会话</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>会话</CardTitle>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => void createSession()}
+              aria-label="新建终端"
+              title="新建终端"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {sessions.map((s) => (
               <button
@@ -238,29 +288,38 @@ export function TerminalPage() {
             ))}
           </div>
         </CardHeader>
-        <CardContent className="relative h-[calc(100%-3.25rem)] p-0">
+        <CardContent className="relative min-h-0 flex-1 p-0">
           <div className="h-full w-full">
             {sessions.map((s) => (
               <div
                 key={s.id}
                 className={cn('h-full w-full', s.id === activeId ? 'block' : 'hidden')}
-                ref={(el) => {
-                  if (el) containers.current.set(s.id, el);
-                }}
-                onClick={() => {
-                  setActiveId(s.id);
-                  terminals.current.get(s.id)?.term.focus();
-                }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setActiveId(s.id);
-                  setContextMenu({
-                    sessionId: s.id,
-                    x: event.clientX,
-                    y: event.clientY,
-                  });
-                }}
-              />
+              >
+                <div
+                  className="h-full w-full px-2.5 py-2"
+                  style={{ background: xtermTheme.background }}
+                >
+                  <div
+                    className="h-full w-full"
+                    ref={(el) => {
+                      if (el) containers.current.set(s.id, el);
+                    }}
+                    onClick={() => {
+                      setActiveId(s.id);
+                      terminals.current.get(s.id)?.term.focus();
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setActiveId(s.id);
+                      setContextMenu({
+                        sessionId: s.id,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                  />
+                </div>
+              </div>
             ))}
             {!sessions.length ? (
               <div className="p-4 text-sm text-muted-foreground">

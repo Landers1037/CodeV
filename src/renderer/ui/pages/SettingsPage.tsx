@@ -24,11 +24,25 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/renderer/state/configStore';
+import { getTerminalAnsiPalette, getTerminalTheme, terminalColorSchemeItems } from '@/renderer/terminalThemes';
 import { type AppConfig, type ProxyType } from '@/shared/types';
 
 function toNumber(value: string, fallback: number) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function uniqueStrings(items: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    const v = raw.trim();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
 }
 
 function envMapToText(map: Record<string, string>) {
@@ -93,10 +107,38 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<AppConfig | null>(null);
   const [envToolId, setEnvToolId] = useState<string>('');
   const [activeTab, setActiveTab] = useState('appearance');
+  const [systemFonts, setSystemFonts] = useState<string[]>([]);
+  const [loadingFonts, setLoadingFonts] = useState(false);
 
   useEffect(() => {
     if (config) setDraft(config);
   }, [config]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingFonts(true);
+    void (async () => {
+      try {
+        const fonts = await window.codev?.system?.listFonts?.();
+        if (cancelled) return;
+        setSystemFonts(uniqueStrings([...(fonts ?? []), 'Consolas']));
+      } catch {
+        if (cancelled) return;
+        setSystemFonts(['Consolas']);
+      } finally {
+        if (!cancelled) setLoadingFonts(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fontFamilyOptions = useMemo(() => {
+    const current = draft?.terminal.fontFamily?.trim() ?? '';
+    const base = systemFonts.length ? systemFonts : ['Consolas'];
+    return uniqueStrings(current ? [current, ...base] : base).sort((a, b) => a.localeCompare(b));
+  }, [draft?.terminal.fontFamily, systemFonts]);
 
   useEffect(() => {
     if (!draft) return;
@@ -124,8 +166,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_104px] gap-4">
-      <section className="app-soft-panel flex min-h-0 flex-col rounded-[26px] p-4">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_104px] gap-4 select-none">
+      <section className="app-soft-panel flex min-h-0 flex-col rounded-[26px] p-4 select-none">
         <div className="border-b border-border/60 pb-4">
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             Styles
@@ -169,6 +211,169 @@ export function SettingsPage() {
                         {theme === 'light' ? '浅色' : '暗色'}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                <div className="app-setting-row space-y-3">
+                  <div>
+                    <div className="text-lg font-semibold">配色方案</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      为内置终端选择经典主题色盘与 ANSI 颜色映射。
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>终端配色方案</Label>
+                    <Select
+                      value={draft.terminal.colorScheme}
+                      onValueChange={(colorScheme) =>
+                        setDraft({
+                          ...draft,
+                          terminal: {
+                            ...draft.terminal,
+                            colorScheme: colorScheme as AppConfig['terminal']['colorScheme'],
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择配色方案" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>配色方案</SelectLabel>
+                          {terminalColorSchemeItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label>终端字体</Label>
+                        <Select
+                          value={draft.terminal.fontFamily}
+                          onValueChange={(fontFamily) =>
+                            setDraft({
+                              ...draft,
+                              terminal: {
+                                ...draft.terminal,
+                                fontFamily,
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择字体" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>
+                                {loadingFonts
+                                  ? '正在获取系统字体...'
+                                  : `系统字体（${fontFamilyOptions.length}）`}
+                              </SelectLabel>
+                              {fontFamilyOptions.map((fontFamily) => (
+                                <SelectItem key={fontFamily} value={fontFamily}>
+                                  {fontFamily}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label>终端字体大小</Label>
+                        <Input
+                          type="number"
+                          min={10}
+                          max={100}
+                          value={draft.terminal.fontSize}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const n = Number(raw);
+                            const fontSize = Number.isFinite(n) ? Math.min(100, Math.max(10, Math.round(n))) : 13;
+                            setDraft({
+                              ...draft,
+                              terminal: {
+                                ...draft.terminal,
+                                fontSize,
+                              },
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className="mt-2 overflow-hidden rounded-2xl border border-border/60"
+                      style={{
+                        background: getTerminalTheme(draft.terminal.colorScheme).background,
+                      }}
+                    >
+                      <div className="relative p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div
+                            className="text-sm font-semibold tracking-tight"
+                            style={{ color: getTerminalTheme(draft.terminal.colorScheme).green }}
+                          >
+                            {draft.terminal.colorScheme}
+                          </div>
+                          <div className="grid grid-cols-8 gap-1">
+                            {getTerminalAnsiPalette(draft.terminal.colorScheme).map((c, idx) => (
+                              <div
+                                key={`${c}-${idx}`}
+                                className="h-3 w-3 rounded-full border border-black/20"
+                                style={{ background: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div
+                          className="mt-4 rounded-2xl px-4 py-3 shadow-[0_18px_42px_-26px_rgba(0,0,0,0.55)]"
+                          style={{
+                            background: 'rgba(0,0,0,0.18)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                          }}
+                        >
+                          <div className="space-y-1 font-mono text-xs leading-5">
+                            <div style={{ color: getTerminalTheme(draft.terminal.colorScheme).foreground }}>
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).yellow }}>
+                                john@doe-pc
+                              </span>
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).foreground }}>
+                                :~$&nbsp;
+                              </span>
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).cyan }}>
+                                ls
+                              </span>
+                            </div>
+                            <div style={{ color: getTerminalTheme(draft.terminal.colorScheme).foreground }}>
+                              -rwxr-xr-x&nbsp;1&nbsp;root&nbsp;
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).yellow }}>
+                                Documents
+                              </span>
+                            </div>
+                            <div style={{ color: getTerminalTheme(draft.terminal.colorScheme).foreground }}>
+                              -rwxr-xr-x&nbsp;1&nbsp;root&nbsp;
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).yellow }}>
+                                Downloads
+                              </span>
+                            </div>
+                            <div style={{ color: getTerminalTheme(draft.terminal.colorScheme).foreground }}>
+                              -rwxr-xr-x&nbsp;1&nbsp;root&nbsp;
+                              <span style={{ color: getTerminalTheme(draft.terminal.colorScheme).blue }}>
+                                Music
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -515,6 +720,16 @@ export function SettingsPage() {
                         {level}
                       </button>
                     ))}
+                  </div>
+                  <div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        void window.codev?.app?.openLogDir?.();
+                      }}
+                    >
+                      打开日志路径
+                    </Button>
                   </div>
                 </div>
               </motion.div>

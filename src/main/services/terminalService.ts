@@ -1,14 +1,15 @@
 import os from 'node:os';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 import { type WebContents } from 'electron';
+import type { IPty } from '@lydell/node-pty';
 
 /** 终端会话。 */
 export type TerminalSession = {
   /** 会话标识。 */
   id: string;
-  /** 子进程实例。 */
-  proc: ChildProcessWithoutNullStreams;
+  proc: ChildProcessWithoutNullStreams | IPty;
 };
 
 function id() {
@@ -17,6 +18,7 @@ function id() {
 
 export class TerminalService {
   private sessions = new Map<string, TerminalSession>();
+  private requirePty = createRequire(__filename);
 
   constructor(private renderer: WebContents) {}
 
@@ -40,30 +42,57 @@ export class TerminalService {
         ? ['-NoLogo', '-NoProfile']
         : []);
 
-    const p = spawn(shell, shellArgs, {
-      cwd: cwd || os.homedir(),
-      env: { ...(process.env as Record<string, string>), ...(envPatch ?? {}) },
-      stdio: 'pipe',
-      windowsHide: true,
-    });
-
     const sessionId = id();
-    this.sessions.set(sessionId, { id: sessionId, proc: p });
+    const env = { ...(process.env as Record<string, string>), ...(envPatch ?? {}) };
+    const workdir = cwd || os.homedir();
 
-    p.stdout.on('data', (buf) => {
-      const data = buf.toString();
-      this.renderer.send('terminal:data', { id: sessionId, data });
-    });
+    try {
+      const mod = this.requirePty('@lydell/node-pty') as typeof import('@lydell/node-pty');
+      const pty = mod?.default ?? mod;
+      const p = pty.spawn(shell, shellArgs, {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: workdir,
+        env,
+        ...(process.platform === 'win32' ? { useConpty: true } : {}),
+      });
 
-    p.stderr.on('data', (buf) => {
-      const data = buf.toString();
-      this.renderer.send('terminal:data', { id: sessionId, data });
-    });
+      this.sessions.set(sessionId, { id: sessionId, proc: p });
 
-    p.on('exit', () => {
-      this.sessions.delete(sessionId);
-      this.renderer.send('terminal:exit', { id: sessionId });
-    });
+      p.onData((data) => {
+        this.renderer.send('terminal:data', { id: sessionId, data });
+      });
+
+      p.onExit(() => {
+        this.sessions.delete(sessionId);
+        this.renderer.send('terminal:exit', { id: sessionId });
+      });
+    } catch {
+      const p = spawn(shell, shellArgs, {
+        cwd: workdir,
+        env,
+        stdio: 'pipe',
+        windowsHide: true,
+      });
+
+      this.sessions.set(sessionId, { id: sessionId, proc: p });
+
+      p.stdout.on('data', (buf) => {
+        const data = buf.toString();
+        this.renderer.send('terminal:data', { id: sessionId, data });
+      });
+
+      p.stderr.on('data', (buf) => {
+        const data = buf.toString();
+        this.renderer.send('terminal:data', { id: sessionId, data });
+      });
+
+      p.on('exit', () => {
+        this.sessions.delete(sessionId);
+        this.renderer.send('terminal:exit', { id: sessionId });
+      });
+    }
 
     return sessionId;
   }
@@ -72,20 +101,23 @@ export class TerminalService {
   write(id: string, data: string) {
     const s = this.sessions.get(id);
     if (!s) return;
-    s.proc.stdin.write(data);
+    if ('write' in s.proc) s.proc.write(data);
+    else s.proc.stdin.write(data);
   }
 
   /** 调整终端尺寸。 */
   resize(id: string, cols: number, rows: number) {
-    void cols;
-    void rows;
+    const s = this.sessions.get(id);
+    if (!s) return;
+    if ('resize' in s.proc) s.proc.resize(cols, rows);
   }
 
   /** 关闭终端会话。 */
   close(id: string) {
     const s = this.sessions.get(id);
     if (!s) return;
-    s.proc.kill();
+    if ('kill' in s.proc) s.proc.kill();
+    else s.proc.kill();
     this.sessions.delete(id);
   }
 }

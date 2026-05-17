@@ -1,7 +1,7 @@
 import { clipboard, contextBridge, ipcRenderer } from 'electron';
 
 import { type AppUpdateResult } from '@/shared/appUpdateTypes';
-import { type AppConfig } from '@/shared/types';
+import { type AppConfig, type RepoCommit, type RepoCommitDiff, type RepoSummary } from '@/shared/types';
 import { type DownloadTask } from '@/shared/downloadTypes';
 
 contextBridge.exposeInMainWorld('codev', {
@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('codev', {
     getVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
     /** 检查应用更新。 */
     checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates') as Promise<AppUpdateResult>,
+    openLogDir: () =>
+      ipcRenderer.invoke('app:openLogDir') as Promise<
+        | { ok: true; dir: string }
+        | { ok: false; error: string }
+      >,
+  },
+  system: {
+    listFonts: () => ipcRenderer.invoke('system:listFonts') as Promise<string[]>,
   },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -19,6 +27,7 @@ contextBridge.exposeInMainWorld('codev', {
   dialog: {
     openExe: () => ipcRenderer.invoke('dialog:openExe') as Promise<string>,
     openImage: () => ipcRenderer.invoke('dialog:openImage') as Promise<string>,
+    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory') as Promise<string>,
     importToolIcon: () => ipcRenderer.invoke('dialog:importToolIcon') as Promise<string>,
   },
   config: {
@@ -106,6 +115,31 @@ contextBridge.exposeInMainWorld('codev', {
       ) => listener(payload);
       ipcRenderer.on('terminal:exit', handler);
       return () => ipcRenderer.removeListener('terminal:exit', handler);
+    },
+  },
+  repos: {
+    listSummaries: () => ipcRenderer.invoke('repos:listSummaries') as Promise<RepoSummary[]>,
+    add: (repoPath: string) => ipcRenderer.invoke('repos:add', repoPath) as Promise<AppConfig>,
+    remove: (repoId: string) => ipcRenderer.invoke('repos:remove', repoId) as Promise<AppConfig>,
+    listCommits: (repoId: string, depth?: number) =>
+      ipcRenderer.invoke('repos:listCommits', repoId, depth) as Promise<RepoCommit[]>,
+    getCommitDiff: (repoId: string, oid: string) =>
+      ipcRenderer.invoke('repos:getCommitDiff', repoId, oid) as Promise<RepoCommitDiff>,
+  },
+  bookmarks: {
+    add: (url: string) => ipcRenderer.invoke('bookmarks:add', url) as Promise<AppConfig>,
+    remove: (bookmarkId: string) => ipcRenderer.invoke('bookmarks:remove', bookmarkId) as Promise<AppConfig>,
+    update: (bookmarkId: string, payload: { url: string; title: string }) =>
+      ipcRenderer.invoke('bookmarks:update', bookmarkId, payload) as Promise<AppConfig>,
+    open: (url: string) => ipcRenderer.invoke('bookmarks:open', url) as Promise<void>,
+  },
+  notify: {
+    onToast: (listener: (payload: { title: string; message: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: { title: string; message: string }) => {
+        listener(payload);
+      };
+      ipcRenderer.on('notify:toast', handler);
+      return () => ipcRenderer.removeListener('notify:toast', handler);
     },
   },
 });

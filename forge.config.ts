@@ -7,14 +7,47 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 
 const iconPath = path.resolve(__dirname, 'assets', 'icon.ico');
 
+async function exists(p: string) {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: '**/*.{node,dll,exe,pdb}',
+    },
     extraResource: ['assets'],
     icon: iconPath,
+  },
+  hooks: {
+    packageAfterCopy: async (_forgeConfig, buildPath) => {
+      const srcBase = path.resolve(__dirname, 'node_modules', '@lydell');
+      if (!(await exists(srcBase))) return;
+
+      const destBase = path.join(buildPath, 'node_modules', '@lydell');
+      await fs.mkdir(destBase, { recursive: true });
+
+      const entries = await fs.readdir(srcBase, { withFileTypes: true });
+      const candidates = entries
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .filter((name) => name === 'node-pty' || name.startsWith('node-pty-'));
+
+      for (const name of candidates) {
+        const from = path.join(srcBase, name);
+        const to = path.join(destBase, name);
+        await fs.cp(from, to, { recursive: true, force: true });
+      }
+    },
   },
   rebuildConfig: {},
   makers: [
@@ -26,6 +59,10 @@ const config: ForgeConfig = {
     new MakerDeb({}),
   ],
   plugins: [
+    {
+      name: '@electron-forge/plugin-auto-unpack-natives',
+      config: {},
+    },
     new VitePlugin({
       // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
       // If you are familiar with Vite configuration, it will look really familiar.

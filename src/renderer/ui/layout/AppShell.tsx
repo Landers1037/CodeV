@@ -1,7 +1,9 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Bookmark,
   Download,
+  FolderGit2,
   Home,
   Plus,
   Settings,
@@ -42,6 +44,8 @@ const navItems = [
   { to: '/', label: '首页', icon: Home },
   { to: '/downloads', label: '下载', icon: Download },
   { to: '/terminal', label: '终端', icon: TerminalIcon },
+  { to: '/repos', label: '仓库', icon: FolderGit2 },
+  { to: '/bookmarks', label: '书签', icon: Bookmark },
   { to: '/settings', label: '设置', icon: Settings },
 ] as const;
 
@@ -60,6 +64,7 @@ export function AppShell() {
   const [exePath, setExePath] = useState('');
   const [logoPath, setLogoPath] = useState('');
   const [isGui, setIsGui] = useState(true);
+  const [needDownload, setNeedDownload] = useState(false);
 
   const canAdd = useMemo(() => {
     return !!toolName.trim() && !!toolCategory.trim() && !!exePath.trim();
@@ -121,6 +126,16 @@ export function AppShell() {
         title: '终端工作台',
       };
     }
+    if (location.pathname.startsWith('/repos')) {
+      return {
+        title: '仓库',
+      };
+    }
+    if (location.pathname.startsWith('/bookmarks')) {
+      return {
+        title: '书签',
+      };
+    }
     if (location.pathname.startsWith('/settings')) {
       return {
         title: '参数设置',
@@ -154,7 +169,8 @@ export function AppShell() {
       description: '',
       logoPath: logoPath.trim(),
       category: toolCategory.trim(),
-      source: { kind: 'scan', scanOnly: true },
+      needDownload,
+      source: null,
       downloadUrl: '',
       installPath: exePath.trim(),
       detectedInstallPath: '',
@@ -178,11 +194,12 @@ export function AppShell() {
     setExePath('');
     setLogoPath('');
     setIsGui(true);
+    setNeedDownload(false);
   };
 
   return (
     <TooltipProvider>
-      <div className="app-shell-bg h-screen w-screen overflow-hidden text-foreground">
+      <div className="app-shell-bg h-screen w-screen overflow-hidden text-foreground select-none">
         <div className="flex h-full">
           <div className="flex items-center">
             <aside className="app-sidebar ml-2 flex h-[calc(100vh-16px)] w-[72px] shrink-0 flex-col items-center justify-between rounded-[10px] px-4 py-5">
@@ -372,6 +389,10 @@ export function AppShell() {
             <div className="app-setting-row flex items-center justify-between gap-4">
               <Label>GUI 程序</Label>
               <Switch checked={isGui} onCheckedChange={setIsGui} />
+            </div>
+            <div className="app-setting-row flex items-center justify-between gap-4">
+              <Label>需要下载</Label>
+              <Switch checked={needDownload} onCheckedChange={setNeedDownload} />
             </div>
           </div>
 

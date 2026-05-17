@@ -3,9 +3,11 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
 import { registerAppIpc } from '@/main/ipc/appIpc';
+import { registerBookmarkIpc } from '@/main/ipc/bookmarkIpc';
 import { registerConfigIpc } from '@/main/ipc/configIpc';
 import { registerDialogIpc } from '@/main/ipc/dialogIpc';
 import { registerDownloadIpc } from '@/main/ipc/downloadIpc';
+import { registerRepoIpc } from '@/main/ipc/repoIpc';
 import { registerTerminalIpc } from '@/main/ipc/terminalIpc';
 import { registerToolsIpc } from '@/main/ipc/toolsIpc';
 import { ConfigService } from '@/main/services/configService';
@@ -24,6 +26,14 @@ const downloadManager = new DownloadManager(configService, (tasks) => {
   mainWindow?.webContents.send('downloads:changed', tasks);
 });
 let mainWindow: BrowserWindow | null = null;
+
+function focusMainWindow() {
+  const win = mainWindow ?? BrowserWindow.getAllWindows()[0] ?? null;
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+}
 
 function createWindow() {
   // Create the browser window.
@@ -61,6 +71,10 @@ function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   return mainWindow;
 }
 
@@ -86,17 +100,28 @@ function registerIpcHandlers() {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', () => {
-  const win = createWindow();
-  registerIpcHandlers();
-  registerAppIpc(configService);
-  registerConfigIpc(configService, win.webContents);
-  registerToolsIpc(configService, toolLauncher, win.webContents);
-  registerDownloadIpc(configService, downloadManager, win.webContents);
-  registerTerminalIpc(configService, win.webContents);
-  registerDialogIpc(win);
-  void setupTray(win, configService);
-});
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    focusMainWindow();
+  });
+
+  void app.whenReady().then(() => {
+    const win = createWindow();
+    registerIpcHandlers();
+    registerAppIpc(configService);
+    registerConfigIpc(configService, win.webContents);
+    registerToolsIpc(configService, toolLauncher, win.webContents);
+    registerDownloadIpc(configService, downloadManager, win.webContents);
+    registerTerminalIpc(configService, win.webContents);
+    registerDialogIpc(win);
+    registerRepoIpc(configService, win.webContents);
+    registerBookmarkIpc(configService, win.webContents);
+    void setupTray(win, configService);
+  });
+}
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
@@ -112,6 +137,8 @@ app.on('activate', () => {
   // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  } else {
+    focusMainWindow();
   }
 });
 

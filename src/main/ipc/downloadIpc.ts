@@ -54,7 +54,8 @@ export function registerDownloadIpc(
       const cfg = await configService.load();
       const tool = cfg.tools.find((t) => t.id === toolId);
       if (!tool) return { ok: false, error: '工具不存在' } as const;
-      if (tool.source.kind !== 'githubRelease')
+      if (tool.needDownload === false) return { ok: false, error: '该工具不支持下载' } as const;
+      if (!tool.source || tool.source.kind !== 'githubRelease')
         return { ok: false, error: '该工具不支持下载' } as const;
 
       const releases = await fetchLatestReleases(tool.source.repo, cfg.proxy, 5);
