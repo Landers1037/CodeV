@@ -31,21 +31,28 @@ const config: ForgeConfig = {
   hooks: {
     packageAfterCopy: async (_forgeConfig, buildPath) => {
       const srcBase = path.resolve(__dirname, 'node_modules', '@lydell');
-      if (!(await exists(srcBase))) return;
+      if (await exists(srcBase)) {
+        const destBase = path.join(buildPath, 'node_modules', '@lydell');
+        await fs.mkdir(destBase, { recursive: true });
 
-      const destBase = path.join(buildPath, 'node_modules', '@lydell');
-      await fs.mkdir(destBase, { recursive: true });
+        const entries = await fs.readdir(srcBase, { withFileTypes: true });
+        const candidates = entries
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .filter((name) => name === 'node-pty' || name.startsWith('node-pty-'));
 
-      const entries = await fs.readdir(srcBase, { withFileTypes: true });
-      const candidates = entries
-        .filter((e) => e.isDirectory())
-        .map((e) => e.name)
-        .filter((name) => name === 'node-pty' || name.startsWith('node-pty-'));
+        for (const name of candidates) {
+          const from = path.join(srcBase, name);
+          const to = path.join(destBase, name);
+          await fs.cp(from, to, { recursive: true, force: true });
+        }
+      }
 
-      for (const name of candidates) {
-        const from = path.join(srcBase, name);
-        const to = path.join(destBase, name);
-        await fs.cp(from, to, { recursive: true, force: true });
+      const fontListSrc = path.resolve(__dirname, 'node_modules', 'font-list');
+      if (await exists(fontListSrc)) {
+        const fontListDest = path.join(buildPath, 'node_modules', 'font-list');
+        await fs.mkdir(path.dirname(fontListDest), { recursive: true });
+        await fs.cp(fontListSrc, fontListDest, { recursive: true, force: true });
       }
     },
   },
