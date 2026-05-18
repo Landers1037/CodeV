@@ -149,7 +149,6 @@ export function BookmarksPage() {
             <div className="divide-y divide-border/50 rounded-xl border border-border/60">
               {bookmarks.map((b) => {
                 const icon = loadIcon(b.iconPath);
-                console.log('icon', icon);
                 const displayTitle = (b.title || '').trim();
                 return (
                   <div key={b.id} className="flex items-center gap-3 px-4 py-3">
