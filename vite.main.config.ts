@@ -10,7 +10,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['@lydell/node-pty'],
+      external: ['@lydell/node-pty', 'font-list'],
     },
   },
 });

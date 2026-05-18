@@ -1,12 +1,9 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import fsp from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { getFonts } from 'font-list';
 
 import { checkForAppUpdate } from '@/main/services/appUpdater';
 import { type ConfigService } from '@/main/services/configService';
-
-const execFileAsync = promisify(execFile);
 
 function uniqueStrings(items: string[]): string[] {
   const seen = new Set<string>();
@@ -33,29 +30,14 @@ async function listSystemFonts(): Promise<string[]> {
     'SF Mono',
   ]).sort((a, b) => a.localeCompare(b));
 
-  if (process.platform === 'win32') {
-    try {
-      const { stdout } = await execFileAsync(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-Command',
-          "[System.Drawing.Text.InstalledFontCollection]::new().Families | ForEach-Object { $_.Name }",
-        ],
-        { timeout: 5000, windowsHide: true, maxBuffer: 1024 * 1024 },
-      );
-
-      const fonts = uniqueStrings(stdout.split(/\r?\n/)).sort((a, b) => a.localeCompare(b));
-      return fonts.length ? fonts : fallback;
-    } catch {
-      return fallback;
-    }
+  try {
+    const fonts = uniqueStrings(await getFonts({ disableQuoting: true })).sort((a, b) =>
+      a.localeCompare(b),
+    );
+    return fonts.length ? fonts : fallback;
+  } catch {
+    return fallback;
   }
-
-  return fallback;
 }
 
 /** 注册应用信息相关 IPC。 */

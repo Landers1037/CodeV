@@ -268,7 +268,12 @@ export function SettingsPage() {
                           <SelectTrigger>
                             <SelectValue placeholder="选择字体" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent
+                            side="bottom"
+                            sideOffset={6}
+                            avoidCollisions={false}
+                            className="max-h-80 [&_[data-radix-select-viewport]]:max-h-80 [&_[data-radix-select-viewport]]:overflow-y-auto"
+                          >
                             <SelectGroup>
                               <SelectLabel>
                                 {loadingFonts

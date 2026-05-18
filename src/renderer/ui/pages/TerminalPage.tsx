@@ -16,7 +16,7 @@ type Session = { id: string; title: string };
 type ContextMenuState = { sessionId: string; x: number; y: number } | null;
 
 const XTERM_FONT_FALLBACK =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
+  'Consolas, ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
