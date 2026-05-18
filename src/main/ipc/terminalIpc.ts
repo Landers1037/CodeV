@@ -68,7 +68,7 @@ export function registerTerminalIpc(
     const tool = cfg.tools.find((t) => t.id === toolId);
     if (!tool) throw new Error('工具不存在');
 
-    const bin = (await detectToolBinary(tool)) || '';
+    const bin = (await detectToolBinary(tool, cfg.advanced)) || '';
     if (!bin) throw new Error('未检测到可执行文件，请先安装或配置安装路径');
 
     const env = {

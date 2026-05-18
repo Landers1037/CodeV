@@ -6,6 +6,19 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function uniqueStrings(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    const v = raw.trim();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 function normalizeTool(tool: ToolMeta): ToolMeta {
   return {
     description: '',
@@ -134,6 +147,20 @@ export function normalizeConfig(input: AppConfig): { next: AppConfig; changed: b
       ...next.terminal,
       fontFamily,
       fontSize,
+    };
+    changed = true;
+  }
+
+  const scanRoots = uniqueStrings(next.advanced.scanRoots ?? []);
+  const scanDepth = clampNumber(Math.round(next.advanced.scanDepth ?? 10), 1, 50);
+  if (
+    JSON.stringify(scanRoots) !== JSON.stringify(next.advanced.scanRoots ?? []) ||
+    scanDepth !== next.advanced.scanDepth
+  ) {
+    next.advanced = {
+      ...next.advanced,
+      scanRoots,
+      scanDepth,
     };
     changed = true;
   }

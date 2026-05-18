@@ -32,8 +32,8 @@ function proxyToEnv(proxy: ProxyConfig): Record<string, string> {
   };
 }
 
-async function resolveBinary(tool: ToolMeta): Promise<string> {
-  const detected = await detectToolBinary(tool);
+async function resolveBinary(tool: ToolMeta, config: AppConfig): Promise<string> {
+  const detected = await detectToolBinary(tool, config.advanced);
   if (detected) return detected;
   if (tool.installPath) {
     const asFile = tool.installPath.toLowerCase().endsWith('.exe')
@@ -60,7 +60,7 @@ export class ToolLauncher {
       return { ok: true, pid: existing, reused: true };
     }
 
-    const bin = await resolveBinary(tool);
+    const bin = await resolveBinary(tool, config);
     if (!bin) return { ok: false, error: '未检测到可执行文件，请先安装或配置安装路径' };
 
     const env = {

@@ -14,7 +14,7 @@ export function registerToolsIpc(
     const cfg = await configService.load();
     const tools = await Promise.all(
       cfg.tools.map(async (t) => {
-        const detected = await detectToolBinary(t);
+        const detected = await detectToolBinary(t, cfg.advanced);
         return {
           ...t,
           detectedInstallPath: detected ? detected : '',
@@ -46,7 +46,7 @@ export function registerToolsIpc(
     const tools = await Promise.all(
       cfg.tools.map(async (t) => {
         if (t.id !== toolId) return t;
-        const detected = await detectToolBinary(t);
+        const detected = await detectToolBinary(t, cfg.advanced);
         return {
           ...t,
           detectedInstallPath: detected ? detected : '',

@@ -141,6 +141,28 @@ export function defaultTools(): ToolMeta[] {
       proxy: defaultProxy(),
     },
     {
+      id: 'cc-switch',
+      name: 'CC Switch',
+      description: '',
+      logoPath: '',
+      category: '代理/网络',
+      needDownload: true,
+      source: {
+        kind: 'githubRelease',
+        scanOnly: false,
+        repo: 'farion1231/cc-switch',
+      },
+      downloadUrl: 'https://github.com/farion1231/cc-switch',
+      installPath: '',
+      detectedInstallPath: '',
+      isGui: true,
+      programName: 'cc-switch',
+      binaryName: 'cc-switch.exe',
+      args: [],
+      env: {},
+      proxy: defaultProxy(),
+    },    
+    {
       id: 'codex-proxy',
       name: 'codex-proxy',
       description: '',
@@ -331,6 +353,8 @@ export function defaultConfig(): AppConfig {
     advanced: {
       autoStart: false,
       logLevel: 'error',
+      scanRoots: [],
+      scanDepth: 10,
     },
     tools: defaultTools(),
   };

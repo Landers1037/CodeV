@@ -1,7 +1,7 @@
 {
   "name": "codev",
   "productName": "CodeV",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "My Ai All-In-One Tool",
   "main": ".vite/build/main.js",
   "private": true,

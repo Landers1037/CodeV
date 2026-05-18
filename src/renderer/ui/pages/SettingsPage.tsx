@@ -109,6 +109,7 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState('appearance');
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   const [loadingFonts, setLoadingFonts] = useState(false);
+  const [scanRootInput, setScanRootInput] = useState('');
 
   useEffect(() => {
     if (config) setDraft(config);
@@ -735,6 +736,111 @@ export function SettingsPage() {
                     >
                       打开日志路径
                     </Button>
+                  </div>
+                </div>
+
+                <div className="app-setting-row space-y-4">
+                  <div>
+                    <div className="text-lg font-semibold">扫描配置</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      默认扫描系统目录，并支持添加自定义目录与扫描层级（1-50）。
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:max-w-[220px]">
+                    <Label>扫描层级</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={draft.advanced.scanDepth}
+                      onChange={(e) => {
+                        const raw = Number(e.target.value);
+                        const scanDepth = Number.isFinite(raw)
+                          ? Math.min(50, Math.max(1, Math.round(raw)))
+                          : 10;
+                        setDraft({
+                          ...draft,
+                          advanced: {
+                            ...draft.advanced,
+                            scanDepth,
+                          },
+                        });
+                      }}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>自定义扫描目录</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        value={scanRootInput}
+                        onChange={(e) => setScanRootInput(e.target.value)}
+                        placeholder="输入目录路径或点击“选择目录”"
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          void (async () => {
+                            const dir = await window.codev?.dialog?.openDirectory?.();
+                            if (!dir) return;
+                            setScanRootInput(dir);
+                          })();
+                        }}
+                      >
+                        选择目录
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          const next = uniqueStrings([
+                            ...(draft.advanced.scanRoots ?? []),
+                            scanRootInput,
+                          ]);
+                          setDraft({
+                            ...draft,
+                            advanced: {
+                              ...draft.advanced,
+                              scanRoots: next,
+                            },
+                          });
+                          setScanRootInput('');
+                        }}
+                      >
+                        添加
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(draft.advanced.scanRoots ?? []).length ? (
+                        (draft.advanced.scanRoots ?? []).map((root) => (
+                          <div
+                            key={root}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm"
+                          >
+                            <span className="truncate text-muted-foreground">{root}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setDraft({
+                                  ...draft,
+                                  advanced: {
+                                    ...draft.advanced,
+                                    scanRoots: (draft.advanced.scanRoots ?? []).filter((x) => x !== root),
+                                  },
+                                });
+                              }}
+                            >
+                              删除
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          暂无自定义目录，仅使用默认扫描目录。
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>

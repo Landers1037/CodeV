@@ -70,6 +70,10 @@ export interface AdvancedConfig {
   autoStart: boolean;
   /** 日志等级。 */
   logLevel: LogLevel;
+  /** 额外扫描目录。 */
+  scanRoots: string[];
+  /** 扫描层级。 */
+  scanDepth: number;
 }
 
 export type ToolSource =
